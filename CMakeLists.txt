@@ -1,19 +1,20 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(agv_controller)
+project(tircgo_controller)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
-# add_compile_options(-std=c++11)
+add_compile_options(-std=c++11)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
-  tircgo_uart
   message_generation
   roscpp
   rospy
   std_msgs
   geometry_msgs
+  sensor_msgs
+  tircgo_uart
 )
 
 ## System dependencies are found with CMake's conventions
@@ -50,18 +51,16 @@ find_package(catkin REQUIRED COMPONENTS
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-add_message_files(
-  FILES
-  # Message1.msg
-  # Message2.msg
-)
+# add_message_files(
+#   FILES
+# )
 
 ## Generate services in the 'srv' folder
-add_service_files(
-  FILES
+# add_service_files(
+  # FILES
   # Service1.srv
   # Service2.srv
-)
+# )
 
 ## Generate actions in the 'action' folder
 # add_action_files(
@@ -75,6 +74,7 @@ generate_messages(
   DEPENDENCIES
   std_msgs
   geometry_msgs
+  sensor_msgs
 )
 
 ################################################
@@ -208,6 +208,22 @@ include_directories(
 
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
-add_executable(agv_controller_test_node src/test.cpp src/Controller.cpp src/Joystick.cpp src/UART.cpp src/Wifi.cpp)
-target_link_libraries(agv_controller_test_node ${catkin_LIBRARIES})
-add_dependencies(agv_controller_test_node agv_controller_gencpp ${catkin_EXPORTED_TARGETS})
+add_executable(tircgo_controller_node 
+  src/test.cpp
+  src/Controller_mode.cpp
+  src/Controller_common.cpp
+  src/Controller_serve.cpp
+  src/Joystick.cpp
+  src/UART.cpp
+  src/PoseTracer.cpp
+  src/tircgo_common.cpp
+)
+target_compile_definitions(tircgo_controller_node PUBLIC 
+  ROBOT_LOOP_FREQ=20 # loop frequency of whole controller
+  ROBOT_CONTROLLER_TEST=0 # 0 for real application, 1 for testing
+  ROBOT_CONTROLLER_DRIVE_TIMEOUT=0.4 #  timeout to refresh dirve speed 
+  ROBOT_CONTROLLER_SAFE=1 # safely drive
+  ROBOT_CONTROLLER_WIFI=1 # ask wifi before enter working
+)
+target_link_libraries(tircgo_controller_node ${catkin_LIBRARIES})
+add_dependencies(tircgo_controller_node tircgo_controller_gencpp ${catkin_EXPORTED_TARGETS})
