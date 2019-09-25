@@ -1,22 +1,10 @@
 #ifndef PYBOT_H
 #define PYBOT_H
-#include <ros/ros.h>
-#include <geometry_msgs/TwistStamped.h>
-#include "tircgo_uart/RobotInvoke.h" // srv header
-#include "tircgo_uart/RobotStatus.h" // topic header for subscribing to the robot status
-
-#include <string>
+#include <set>
 namespace  pybot
 {
     using namespace std;
     const int MSG_QUE_SIZE = 100;
-    enum class Mode: int16_t
-    {
-        MODE_IDLE = 1,
-        MODE_HOMING = 2,
-        MODE_TRAINING = 3,
-        MODE_WORKING = 4,
-    };
     /* UART */
     enum class Tracking_status: int16_t
     {
@@ -26,20 +14,46 @@ namespace  pybot
         TRACKING_STATUS_OBSTACLE = -3,
         TRACKING_STATUS_ARRIVAL = 127,
     };
-    const size_t LIDAR_DIR_FRONT = 0, LIDAR_DIR_BACK = 1, LIDAR_DIR_LEFT = 2, LIDAR_DIR_RIGHT = 3;
-    const int16_t LIDAR_LEVEL_H = 1, LIDAR_LEVEL_M = 2, LIDAR_LEVEL_L = 3;
+    // Lidar_dir
+    const size_t 
+        LIDAR_DIR_FRONT = 0,
+        LIDAR_DIR_BACK = 1,
+        LIDAR_DIR_LEFT = 2,
+        LIDAR_DIR_RIGHT = 3;
+    // Lidar_level
+    const int16_t 
+        LIDAR_LEVEL_H = 1,
+        LIDAR_LEVEL_M = 2,
+        LIDAR_LEVEL_L = 3;
+    enum class Mode: int
+    {
+        MODE_IDLE = 1,
+        MODE_HOMING = 2,
+        MODE_TRAINING = 3,
+        MODE_WORKING = 4,
+    };
     enum class Opcode: char
     {
+        // uart-defined
         OPCODE_HOMEING = 'A',
-        OPCODE_CLEAR = 'B',
+        OPCODE_ORIGIN = 'B',
         OPCODE_CALIB_BEGIN = 'C',
         OPCODE_CALIB_FINISH = 'D',
         OPCODE_TRAIN_BEGIN = 'E',
         OPCODE_SETNODE = 'F',
         OPCODE_TRAIN_FINISH = 'G',
         OPCODE_WORK_BEGIN = 'H',
-        OPCODE_BRAKE = 'I',
+        OPCODE_IDLE = 'I',
         OPCODE_POWEROFF = 'K',
+        OPCODE_DRIVE = 'M',
+        // self-defined
+        OPCODE_NONE = '0',
+        // OPCODE_TARGET_ROUTE_SET = '1',
+        OPCODE_TARGET_ROUTE_U = '2',
+        OPCODE_TARGET_ROUTE_D = '3',
+        // OPCODE_TARGET_NODE_SET = '4',
+        OPCODE_TARGET_NODE_U = '5',
+        OPCODE_TARGET_NODE_D = '6',
     };
     enum class Errcode: int16_t
     {
@@ -51,20 +65,48 @@ namespace  pybot
         ERRCODE_LOST = -4,
         ERRCODE_INVAILD_OPCODE = -5,
     };
-    /* topics */
+    // buttons
+    const int
+        JOYBUTTON_X = 0,
+        JOYBUTTON_A = 1,
+        JOYBUTTON_B = 2,
+        JOYBUTTON_Y = 3,
+        JOYBUTTON_LB = 4,
+        JOYBUTTON_RB = 5,
+        JOYBUTTON_LT = 6,
+        JOYBUTTON_RT = 7,
+        JOYBUTTON_BACK = 8,
+        JOYBUTTON_START = 9,
+        JOYBUTTON_MODE = 10,
+        JOYBUTTON_VIBRA = 11;
+    // axes, L > 0, R < 0, U > 0, D < 0
+    const int
+        JOYBUTTON_STICKLEFT_LR = 0,
+        JOYBUTTON_STICKLEFT_UD = 1,
+        JOYBUTTON_STICKRIGHT_LR = 2,
+        JOYBUTTON_STICKRIGHT_UD = 3,
+        JOYBUTTON_CROSS_LR = 4,
+        JOYBUTTON_CROSS_UD = 5;
+    static map<Opcode, Mode> op_to_mode = {
+        {Opcode::OPCODE_IDLE, Mode::MODE_IDLE},
+        {Opcode::OPCODE_HOMEING, Mode::MODE_HOMING},
+        {Opcode::OPCODE_TRAIN_BEGIN, Mode::MODE_TRAINING},
+        {Opcode::OPCODE_WORK_BEGIN, Mode::MODE_WORKING},
+    };
     const char ROBOTINVOKE_TOPIC[] = "robot_incoke_topic";
     const char ROBOTSTATUS_TOPIC[] = "robot_status_topic";
-    const char ROBOTVELCMD_TOPIC[] = "manual_cmd_vel";
+    // const char ROBOTVELCMD_TOPIC[] = "manual_cmd_vel";
     /* motor limits */
     const double MOTOR_LINEAR_LIMIT = 60;
     const double MOTOR_ANGULAR_LIMIT = 10;
+    /* end UART */
+
     /* Joystick */
-    const string JOYSTICKIO_TOPIC("joystickio_topic");
-    enum class JoystickOp: int16_t
-    {
-        //implement
-    };
+    const char JOYSTICKIO_TOPIC[] = "joy";
     /* Wifi */
-    const string WIFI_TOPIC("wifi_topic"); // implement
+    const char WIFI_TOPIC[] = "wifi_topic"; // implement
+
+    /* Debug*/
+    const char DEBUG_TOPIC[] = "debug_topic";
 }
 #endif

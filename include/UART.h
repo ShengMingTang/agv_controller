@@ -1,11 +1,14 @@
 #ifndef UART_H
 #define UART_H
-#include <cmath>
+#include <ros/ros.h>
+#include <geometry_msgs/TwistStamped.h>
 #include <functional>
+#include <vector>
 #include "pybot.h"
+#include "tircgo_uart/RobotInvoke.h" // srv header
 
+#define UART_VERBOSE 0
 using namespace std;
-using namespace std::placeholders;
 using namespace pybot;
 using namespace tircgo_uart;
 namespace pybot
@@ -15,22 +18,14 @@ namespace pybot
     public:
         UART(const string& _paremt_frame_id);
         ~UART();
-        // may return invalid srv response
         RobotInvoke invoke(const char _op, const std::vector<int16_t>& _args);
-        Tracking_status get_tracking_status()const;
-        // void drive(const double _v, const double _w, const string& _frame)const;
+        bool is_invoke_valid(RobotInvoke _srv);
     private:
         ros::NodeHandle n;
-        void status_callback(const RobotStatus::ConstPtr& _msg);
-        ros::ServiceClient invoke_clt; // send uart request
-        ros::Publisher velCmd_pub; // drive AGV
-        ros::Subscriber status_sub; // subscribe to status
-
         const string frame_id;
-        Mode mode;
-        Tracking_status tracking_status;
-        int16_t lidar_levels[4];
-        // The above variables will all be up to date
+
+        ros::ServiceClient invoke_clt; // send uart request
+        // ros::Publisher velCmd_pub; // drive AGV
     };
 }
 #endif
