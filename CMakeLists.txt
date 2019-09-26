@@ -214,6 +214,6 @@ add_executable(agv_controller_test_node src/test.cpp src/Controller.cpp src/Joys
 target_link_libraries(agv_controller_test_node ${catkin_LIBRARIES})
 add_dependencies(agv_controller_test_node agv_controller_gencpp ${catkin_EXPORTED_TARGETS})
 
-add_executable(agv_controller_echo_node src/echo.cpp)
-target_link_libraries(agv_controller_echo_node ${catkin_LIBRARIES})
-add_dependencies(agv_controller_echo_node agv_echo_gencpp ${catkin_EXPORTED_TARGETS})
+add_executable(agv_controller_monitor_node src/monitor.cpp)
+target_link_libraries(agv_controller_monitor_node ${catkin_LIBRARIES})
+add_dependencies(agv_controller_monitor_node agv_monitor_gencpp ${catkin_EXPORTED_TARGETS})

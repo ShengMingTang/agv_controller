@@ -8,7 +8,7 @@ int main(int _argc, char** _argv)
     ros::Rate loop_rate(10);
     pybot::Controller a("/01");
     a.setup();
-    while(1){
+    while(ros::ok()){
         a.loopOnce();
         loop_rate.sleep();
         ros::spinOnce();

@@ -1,10 +1,9 @@
 #include "UART.h"
 UART::UART(const string& _parent_frame_id):
 invoke_clt{this->n.serviceClient<RobotInvoke>(ROBOTINVOKE_TOPIC)}
-// ,velCmd_pub{this->n.advertise<geometry_msgs::TwistStamped>(ROBOTVELCMD_TOPIC, MSG_QUE_SIZE)},
 ,frame_id{_parent_frame_id + "/uart"}
 {
-    ROS_INFO("UART constructed\n");
+    ROS_INFO("UART constructed");
 }
 RobotInvoke UART::invoke(const char _op, const std::vector<int16_t>& _args)
 {
@@ -13,45 +12,33 @@ RobotInvoke UART::invoke(const char _op, const std::vector<int16_t>& _args)
     srv.request.header.frame_id = this->frame_id;
     srv.request.operation = _op;
     srv.request.argument = _args;
-    bool result = this->invoke_clt.call(srv);
-    #if UART_VERBOSE
-    ROS_INFO("Invoked");
-    if(!result){
-        ROS_ERROR("Failed to call invoke op %c\n", _op);
-    }
-    else{
-        ROS_WARN("Connection to UART Service failed\n");
-    }
-    if(!this->is_invoke_valid(srv)){
-        ;
-    }
-    #endif
+    bool is_success = this->invoke_clt.call(srv);
+    if(!this->invoke_clt.call(srv))
+        ROS_ERROR("Connection to UART Service failed");
     return srv;
 }
 UART::~UART()
 {
-    ROS_INFO("UART destroyed\n");
+    ROS_INFO("UART destroyed");
 }
 bool UART::is_invoke_valid(RobotInvoke _srv)
 {
+    stringstream ss;
     bool ret = true;
+    ss << "Op = " << _srv.request.operation << " ";
     if(!_srv.response.is_legal_op){
-        #if UART_VERBOSE
-        ROS_WARN("Operation illegal\n");
-        #endif
+        ss << "    : Operation illegal\n";
         ret = false;
     }
     if(!_srv.response.is_arg_valid){
-        #if UART_VERBOSE
-        ROS_WARN("Args Invalid\n");
-        #endif
+        ss << "    : Args illegal\n";
         ret = false;
     }
     if(!_srv.response.is_activated){
-        #if UART_VERBOSE
-        ROS_WARN("Connect to UART <-> AGV failed\n");
-        #endif
+        ss << "    : Connect to UART <-> AGV failed";
         ret = false;
     }
+    if(!ret)
+        ROS_ERROR(ss.str().c_str());
     return ret;
 }

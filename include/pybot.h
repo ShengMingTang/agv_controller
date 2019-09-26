@@ -54,6 +54,7 @@ namespace  pybot
         // OPCODE_TARGET_NODE_SET = '4',
         OPCODE_TARGET_NODE_U = '5',
         OPCODE_TARGET_NODE_D = '6',
+        OPCODE_STOP = '7',
     };
     enum class Errcode: int16_t
     {
@@ -81,12 +82,12 @@ namespace  pybot
         JOYBUTTON_VIBRA = 11;
     // axes, L > 0, R < 0, U > 0, D < 0
     const int
-        JOYBUTTON_STICKLEFT_LR = 0,
-        JOYBUTTON_STICKLEFT_UD = 1,
-        JOYBUTTON_STICKRIGHT_LR = 2,
-        JOYBUTTON_STICKRIGHT_UD = 3,
-        JOYBUTTON_CROSS_LR = 4,
-        JOYBUTTON_CROSS_UD = 5;
+        JOYAXES_STICKLEFT_LR = 0,
+        JOYAXES_STICKLEFT_UD = 1,
+        JOYAXES_STICKRIGHT_LR = 2,
+        JOYAXES_STICKRIGHT_UD = 3,
+        JOYAXES_CROSS_LR = 4,
+        JOYAXES_CROSS_UD = 5;
     static map<Opcode, Mode> op_to_mode = {
         {Opcode::OPCODE_IDLE, Mode::MODE_IDLE},
         {Opcode::OPCODE_HOMEING, Mode::MODE_HOMING},
@@ -107,6 +108,6 @@ namespace  pybot
     const char WIFI_TOPIC[] = "wifi_topic"; // implement
 
     /* Debug*/
-    const char DEBUG_TOPIC[] = "debug_topic";
+    const char MONITOR_TOPIC[] = "agv/monitor_topic";
 }
 #endif

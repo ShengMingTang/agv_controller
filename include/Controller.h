@@ -4,16 +4,28 @@
 #include <geometry_msgs/TwistStamped.h>
 #include <std_msgs/String.h>
 #include <vector>
-#include <set>
 #include <map>
+#include <sstream>
+#include <string>
+#include <queue>
+#include <cmath>
 #include "pybot.h"
 #include "Joystick.h"
+// #include "wifi.h"
+#include "Task.h"
 #include "UART.h"
 #include "tircgo_uart/RobotStatus.h" // topic header for subscribing to the robot status
-#include <sstream>
-#define CONTORLLER_VERBOSE 1
+#include "RouteNodeGraph.h"
+#include "wifi/RouteNode.h"
+
+#define CONTROLLER_VERBOSE 1
+#define CONTROLLER_TEST 1
+#if CONTROLLER_TEST
+    static int16_t route_ct, node_ct;
+#endif
 using namespace std;
 using namespace pybot;
+
 namespace pybot
 {
     class Controller
@@ -25,6 +37,7 @@ namespace pybot
         void loopOnce();
 
     private:
+        bool check_safety(); //
         void idle();
         void homing();
         void training();
@@ -32,51 +45,60 @@ namespace pybot
         void clear(); //
         void log(); //
         void drive();
-        void set_node(int16_t _node); //
-
+        void set_node(int16_t _route, int16_t _node); //
+        /* op related */
         Opcode decode_opcode(sensor_msgs::Joy::ConstPtr& _ptr);
         void decode_drive(sensor_msgs::Joy::ConstPtr& _ptr); //
         sensor_msgs::Joy::ConstPtr get_joy_signal();
-
+        
+        /* ISR */
+        void isr();
+        /* build time */
         ros::NodeHandle n;
         const string frame_id;
-        Mode mode = Mode::MODE_IDLE;
-        Tracking_status tracking_status;
-        vector<int16_t> lidar_levels = vector<int16_t>(4);
         
-        /* slaves */
-        UART uart;
+        /* UART related */
+        UART base_driver;
         ros::Subscriber tracking_status_sub; // subscribe to status
         void status_tracking(const RobotStatus::ConstPtr& _msg);
-        map<int16_t, Mode> mode_tf = {
-            {1, Mode::MODE_IDLE},
-            {2, Mode::MODE_HOMING},
-            {3, Mode::MODE_TRAINING},
-            {4, Mode::MODE_WORKING}
-        };
+        // these will be tracked
+        Tracking_status tracking_status;
+        vector<int16_t> lidar_levels = vector<int16_t>(4);
 
+        /* Joystick */
         Joystick joystick;
+        
         // Wifi wifi;
 
         /* runtime */
-        // sensor_msgs::Joy::ConstPtr op_ptr = nullptr;
-        Opcode op;
-        vector<int16_t> vw; // linear and angular velocity
-        // Graph graph
         // AGV-wise parameter
+        Mode mode = Mode::MODE_IDLE;
         bool is_origin_set = false;
         bool is_calibed = false;
         bool is_trained = false;
         bool is_calib_begin = false;
-        // implement graph
+        /* driving accumulator */
+        // point coordinate
+        bool is_driving = false;
+        ros::Time driving_starttime;
+        double driving_dist = 0;
+        vector<int16_t> vw; // linear and angular velocity
+
+        // Graph graph
+        deque<Task> tasks_to_do;
+        Opcode op = Opcode::OPCODE_NONE;
 
         // training related
         int training_route, training_node;
         // working related
+        int target_route, target_node;
         int working_route, working_node;
 
-        /* debug */
-        ros::Publisher debugger;
+        /* Test */
+        #if CONTROLLER_VERBOSE
+            ros::Publisher monitor;
+            void monitor_display();
+        #endif
     };
 }
 #endif

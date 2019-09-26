@@ -4,10 +4,11 @@
 #include <geometry_msgs/TwistStamped.h>
 #include <functional>
 #include <vector>
+#include <sstream>
 #include "pybot.h"
 #include "tircgo_uart/RobotInvoke.h" // srv header
 
-#define UART_VERBOSE 0
+#define UART_VERBOSE 1
 using namespace std;
 using namespace pybot;
 using namespace tircgo_uart;

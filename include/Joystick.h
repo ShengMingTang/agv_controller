@@ -24,9 +24,14 @@ namespace pybot
         ros::NodeHandle n;
         const string frame_id;
         ros::Subscriber sub;
-        // queue<sensor_msgs::Joy::ConstPtr> que;
+        
         sensor_msgs::Joy::ConstPtr ptr;
-        void callback(const sensor_msgs::Joy::ConstPtr& _msg); // implement
+        void callback(const sensor_msgs::Joy::ConstPtr& _msg);
+        /* runtime */
+        int last_pressed = 0;
+        bool is_frozen = false;
+        ros::Timer timer;
+        void timer_callback(const ros::TimerEvent& _event);
     };
 }
 

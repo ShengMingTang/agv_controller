@@ -13,8 +13,7 @@ int main(int argc, char **argv)
 {
   ros::init(argc, argv, "echo");
   ros::NodeHandle n;
-  ros::Subscriber sub = n.subscribe("debug_topic", 100, chatterCallback);
+  ros::Subscriber sub = n.subscribe("agv/monitor_topic", 100, chatterCallback);
   ros::spin();
-
   return 0;
 }
