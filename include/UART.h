@@ -19,7 +19,7 @@ namespace pybot
     public:
         UART(const string& _paremt_frame_id);
         ~UART();
-        RobotInvoke invoke(const char _op, const std::vector<int16_t>& _args);
+        RobotInvoke invoke(const char _op, const std::vector<int16_t> _args);
         bool is_invoke_valid(RobotInvoke _srv);
     private:
         ros::NodeHandle n;

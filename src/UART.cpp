@@ -5,7 +5,7 @@ invoke_clt{this->n.serviceClient<RobotInvoke>(ROBOTINVOKE_TOPIC)}
 {
     ROS_INFO("UART constructed");
 }
-RobotInvoke UART::invoke(const char _op, const std::vector<int16_t>& _args)
+RobotInvoke UART::invoke(const char _op, const std::vector<int16_t> _args)
 {
     RobotInvoke srv;
     srv.request.header.stamp = ros::Time::now();

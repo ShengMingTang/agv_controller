@@ -1,10 +1,11 @@
 #ifndef PYBOT_H
 #define PYBOT_H
-#include <set>
+// #include <set>
+using namespace std;
 namespace  pybot
 {
-    using namespace std;
     const int MSG_QUE_SIZE = 100;
+    const float JOY_CD = 0.5;
     /* UART */
     enum class Tracking_status: int16_t
     {

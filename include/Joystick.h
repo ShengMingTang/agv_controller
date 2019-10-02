@@ -28,10 +28,10 @@ namespace pybot
         sensor_msgs::Joy::ConstPtr ptr;
         void callback(const sensor_msgs::Joy::ConstPtr& _msg);
         /* runtime */
-        int last_pressed = 0;
         bool is_frozen = false;
-        ros::Timer timer;
+        // ros::Timer timer;
         void timer_callback(const ros::TimerEvent& _event);
+        ros::Time last_press_t;
     };
 }
 

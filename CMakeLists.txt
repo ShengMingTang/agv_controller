@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 2.8.3)
 project(agv_controller)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
-# add_compile_options(-std=c++11)
+add_compile_options(-std=c++11)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -210,7 +210,7 @@ include_directories(
 
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
-add_executable(agv_controller_test_node src/test.cpp src/Controller.cpp src/Joystick.cpp src/UART.cpp src/Wifi.cpp)
+add_executable(agv_controller_test_node src/test.cpp src/Controller.cpp src/Joystick.cpp src/UART.cpp src/Wifi.cpp src/PoseTracer.cpp)
 target_link_libraries(agv_controller_test_node ${catkin_LIBRARIES})
 add_dependencies(agv_controller_test_node agv_controller_gencpp ${catkin_EXPORTED_TARGETS})
 

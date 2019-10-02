@@ -2,6 +2,7 @@
 #define CONTROLLER_H
 #include <ros/ros.h>
 #include <geometry_msgs/TwistStamped.h>
+#include <geometry_msgs/Pose.h>
 #include <std_msgs/String.h>
 #include <vector>
 #include <map>
@@ -14,6 +15,7 @@
 // #include "wifi.h"
 #include "Task.h"
 #include "UART.h"
+#include "PoseTracer.h"
 #include "tircgo_uart/RobotStatus.h" // topic header for subscribing to the robot status
 #include "RouteNodeGraph.h"
 #include "wifi/RouteNode.h"
@@ -35,7 +37,7 @@ namespace pybot
         ~Controller();
         void setup(); //
         void loopOnce();
-
+        bool ok() const{return this->is_ok;}
     private:
         bool check_safety(); //
         void idle();
@@ -45,7 +47,7 @@ namespace pybot
         void clear(); //
         void log(); //
         void drive();
-        void set_node(int16_t _route, int16_t _node); //
+        void set_node(int16_t _route, int16_t _node, double _w); //
         /* op related */
         Opcode decode_opcode(sensor_msgs::Joy::ConstPtr& _ptr);
         void decode_drive(sensor_msgs::Joy::ConstPtr& _ptr); //
@@ -62,7 +64,7 @@ namespace pybot
         ros::Subscriber tracking_status_sub; // subscribe to status
         void status_tracking(const RobotStatus::ConstPtr& _msg);
         // these will be tracked
-        Tracking_status tracking_status;
+        Tracking_status tracking_status = Tracking_status::TRACKING_STATUS_NONE;
         vector<int16_t> lidar_levels = vector<int16_t>(4);
 
         /* Joystick */
@@ -77,12 +79,15 @@ namespace pybot
         bool is_calibed = false;
         bool is_trained = false;
         bool is_calib_begin = false;
+        bool is_ok = true;
         /* driving accumulator */
-        // point coordinate
-        bool is_driving = false;
-        ros::Time driving_starttime;
-        double driving_dist = 0;
-        vector<int16_t> vw; // linear and angular velocity
+        // geometry_msgs::Pose pose; // position, orientation
+        PoseTracer pose_tracer;
+        // bool is_driving = false;
+        // ros::Time driving_starttime;
+        // double driving_dist = 0;
+        // vector<int16_t> vw; // linear and angular velocity
+        // pose tracking
 
         // Graph graph
         deque<Task> tasks_to_do;
@@ -93,6 +98,7 @@ namespace pybot
         // working related
         int target_route, target_node;
         int working_route, working_node;
+
 
         /* Test */
         #if CONTROLLER_VERBOSE

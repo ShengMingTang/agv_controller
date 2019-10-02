@@ -1,8 +1,0 @@
-<launch>
-
- <!-- joy node -->
-<node pkg="joy" type="joy_node" name="joy_nodename"/>
-
- <!-- Axes -->
-  <node pkg="agv_controller" type="agv_controller_test_node" name="agv_test"/>
-</launch>

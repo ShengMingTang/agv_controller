@@ -5,26 +5,32 @@
 #include <list>
 #include "pybot.h"
 #include "wifi/RouteNode.h"
+#include <geometry_msgs/Pose.h>
 using namespace std;
 using namespace pybot;
 using namespace wifi;
 namespace pybot
 {
-    // typedef struct RouteNode_Edge
-    // {
-    //     double w; // weight
-    //     wifi::RouteNodeRouteNode v; // destination
-    // }Node;
-    class RouteNodeGraph
+    // RouteNode defined in wifi pkg
+    template<typename T>
+    struct Edge
+    {
+        T v; // this node, adjacent node
+        geometry_msgs::Pose pose;
+        double w; // weight
+        
+    };
+    template<typename T>
+    class Graph
     {
     public:
-        RouteNodeGraph();
-        ~RouteNodeGraph();
-        void add_node(RouteNode _added);
-        double cost_to_target(const RouteNode& _curr, const RouteNode& _target);
-        list<RouteNode> path_to_target(const RouteNode& _target);
+        Graph();
+        ~Graph();
+        void add_node(T _added);
+        double cost_to_target(const T& _curr, const T& _target);
+        list<T> path_to_target(const T& _target);
     private:
-        vector< vector<RouteNode> > data;
+        vector< vector<T> > data;
     };
 }
 #endif
