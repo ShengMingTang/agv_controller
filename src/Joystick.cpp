@@ -1,23 +1,7 @@
 #include "Joystick.h"
 void Joystick::callback(const sensor_msgs::Joy::ConstPtr& _msg)
 {
-    // if(!this->is_frozen){
-    //     this->ptr = _msg;
-    //     this->is_frozen = true;
-    //     this->timer.start();
-    // }
-    // else{ // frozen
-    //     this->ptr = nullptr;
-    // }
-    float t = (_msg->header.stamp - this->last_press_t).toSec();
-    if(t >= JOY_CD){ //valid
-        this->ptr = _msg;
-        this->last_press_t = _msg->header.stamp;
-    }
-    else{ // else take it as bouncing, ignored
-        ROS_INFO("Joystick signal blocked");
-        this->ptr = nullptr;
-    }
+    this->que.push(_msg);
 }
 Joystick::Joystick(const string& _parent_frame_id):
 frame_id{_parent_frame_id + "/joystick"}
@@ -29,9 +13,20 @@ frame_id{_parent_frame_id + "/joystick"}
 }
 sensor_msgs::Joy::ConstPtr Joystick::pop()
 {
-    auto ret = this->ptr;
-    this->ptr = nullptr;
-    return ret;
+    while(!this->que.empty()){
+        auto sig = this->que.front();
+        float t = (sig->header.stamp - this->last_press_t).toSec();
+        if(t >= JOY_CD){ //valid
+            this->last_press_t = sig->header.stamp;
+            this->que.pop();
+            return sig;
+        }
+        else{ // else take it as bouncing, ignored
+            this->que.pop();
+        }
+
+    }
+    return nullptr;
 }
 Joystick::~Joystick()
 {

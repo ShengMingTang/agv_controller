@@ -24,13 +24,14 @@ namespace pybot
     class Graph
     {
     public:
-        Graph();
-        ~Graph();
-        void add_node(T _added);
+        Graph() {}
+        ~Graph() {}
+        void add_node(T _added, double _w);
         double cost_to_target(const T& _curr, const T& _target);
-        list<T> path_to_target(const T& _target);
+        list<T> path_to_target(const T& _curr, const T& _target);
     private:
-        vector< vector<T> > data;
+        vector< vector<T> > nodes;
+        vector< vector<double> > weights;
     };
 }
 #endif

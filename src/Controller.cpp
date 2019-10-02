@@ -18,11 +18,7 @@ Opcode Controller::decode_opcode(sensor_msgs::Joy::ConstPtr& _ptr)
         vector<int32_t> buttons = _ptr->buttons;
         // privileged instructions 
         if(buttons[JOYBUTTON_RT]){
-            // this->is_driving = false;
-            // ros::Duration t = ros::Time::now() - this->driving_starttime;
-            // this->driving_dist += abs(t.toSec() * this->vw[0]);
-            // this->vw = vector<int16_t>(2, 0);
-            // this->pose_tracer.stop();
+            this->pose_tracer.set_vw(0, 0);
             return Opcode::OPCODE_STOP;
         }
         if(buttons[JOYBUTTON_A])
@@ -65,12 +61,6 @@ Opcode Controller::decode_opcode(sensor_msgs::Joy::ConstPtr& _ptr)
                 double v = axes[JOYAXES_CROSS_UD] * MOTOR_LINEAR_LIMIT / 2;
                 double w = axes[JOYAXES_CROSS_LR] * MOTOR_ANGULAR_LIMIT / 2;
                 this->pose_tracer.set_vw(v, w);
-                // this->pose_tracer.start(v, w);
-                // this->is_driving = true;
-                // this->driving_starttime = ros::Time::now();
-                // this->vw[0] = axes[JOYAXES_CROSS_UD] * MOTOR_LINEAR_LIMIT / 2;
-                // this->vw[1] = axes[JOYAXES_CROSS_LR] * MOTOR_ANGULAR_LIMIT / 2;
-                // if(this->vw[1]) this->vw[0] = 0;
             }
         }
     }
@@ -78,11 +68,6 @@ Opcode Controller::decode_opcode(sensor_msgs::Joy::ConstPtr& _ptr)
 }
 void Controller::decode_drive(sensor_msgs::Joy::ConstPtr& _ptr)
 {
-    if(_ptr){
-        // vector<int32_t> buttons = _ptr->buttons;
-        // this->vw[0] = _ptr->axes[0] * 100;
-        // this->vw[1] = _ptr->axes[1] * 100;
-    }
 }
 void Controller::drive()
 {
@@ -280,22 +265,24 @@ void Controller::training()
     switch(this->op){
         case Opcode::OPCODE_NONE:
             break;
-        case Opcode::OPCODE_SETNODE:
+        case Opcode::OPCODE_SETNODE:{
             srv = this->base_driver.invoke((char)Opcode::OPCODE_SETNODE, vector<int16_t>());
             #if CONTROLLER_TEST
                 srv.response.feedback = vector<int16_t>(1, node_ct++);
-            #endif
-            #if CONTROLLER_TEST
-                this->set_node(this->training_route, srv.response.feedback[0], this->pose_tracer.get_dist());
+                wifi::RouteNode nd;
+                nd.route = this->training_route, nd.node = srv.response.feedback[0];
+                this->graph.add_node(nd, this->pose_tracer.get_dist());
+                this->pose_tracer.reset();
             #else
                 if(this->base_driver.is_invoke_valid(srv)){
-                    this->set_node(this->training_route, srv.response.feedback[0], this->pose_tracer.get_dist());
+                    this->graph.add_node(nd, srv.response.feedback[0]);
                 }
                 else{
                     ROS_ERROR("SetNode Invokation Ignored");
                 }
             #endif
             break;
+        }
         case Opcode::OPCODE_TRAIN_FINISH:
             this->is_trained = true;
             srv = this->base_driver.invoke((char)Opcode::OPCODE_TRAIN_FINISH, vector<int16_t>());
@@ -312,6 +299,7 @@ void Controller::training()
 }
 void Controller::set_node(int16_t _route, int16_t _node, double _w)
 {
+    // deprecated
     ROS_INFO("Set RouteNode on R%d, N%d, W%lf", _route, _node, _w);
     this->pose_tracer.reset();
     // this->driving_dist = 0;

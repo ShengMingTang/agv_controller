@@ -13,12 +13,14 @@
 #include "pybot.h"
 #include "Joystick.h"
 // #include "wifi.h"
-#include "Task.h"
+#include "Proc.h"
+#include "ProcTodo.h"
 #include "UART.h"
 #include "PoseTracer.h"
 #include "tircgo_uart/RobotStatus.h" // topic header for subscribing to the robot status
 #include "RouteNodeGraph.h"
 #include "wifi/RouteNode.h"
+#include "RouteNodeGraph.h"
 
 #define CONTROLLER_VERBOSE 1
 #define CONTROLLER_TEST 1
@@ -39,6 +41,10 @@ namespace pybot
         void loopOnce();
         bool ok() const{return this->is_ok;}
     private:
+        /* new version */
+        template<typename T>
+        void exec(Ptr<T> _ptr);
+        /* end */
         bool check_safety(); //
         void idle();
         void homing();
@@ -83,14 +89,10 @@ namespace pybot
         /* driving accumulator */
         // geometry_msgs::Pose pose; // position, orientation
         PoseTracer pose_tracer;
-        // bool is_driving = false;
-        // ros::Time driving_starttime;
-        // double driving_dist = 0;
-        // vector<int16_t> vw; // linear and angular velocity
-        // pose tracking
 
-        // Graph graph
-        deque<Task> tasks_to_do;
+
+        Graph<wifi::RouteNode> graph;
+        ProcTodo tasks;
         Opcode op = Opcode::OPCODE_NONE;
 
         // training related

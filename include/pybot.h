@@ -2,6 +2,10 @@
 #define PYBOT_H
 // #include <set>
 using namespace std;
+template<typename T>
+using ConstPtr = boost::shared_ptr<T const>;
+template<typename T>
+using Ptr = boost::shared_ptr<T>;
 namespace  pybot
 {
     const int MSG_QUE_SIZE = 100;
