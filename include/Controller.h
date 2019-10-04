@@ -23,7 +23,7 @@
 #include "RouteNodeGraph.h"
 
 #define CONTROLLER_VERBOSE 1
-#define CONTROLLER_TEST 1
+#define CONTROLLER_TEST 0
 #if CONTROLLER_TEST
     static int16_t route_ct, node_ct;
 #endif

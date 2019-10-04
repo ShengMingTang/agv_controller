@@ -99,8 +99,8 @@ namespace  pybot
         JOYAXES_STICKRIGHT_UD = 3,
         JOYAXES_CROSS_LR = 4,
         JOYAXES_CROSS_UD = 5;
-    const char ROBOTINVOKE_TOPIC[] = "robot_incoke_topic";
-    const char ROBOTSTATUS_TOPIC[] = "robot_status_topic";
+    const char ROBOTINVOKE_TOPIC[] = "robot_invoke";
+    const char ROBOTSTATUS_TOPIC[] = "robot_status";
     const char JOYSTICKIO_TOPIC[] = "joy";
     /* Wifi */
     const char ROBOT_WIFI_TOPIC[] = "wifi_topic"; // implement
