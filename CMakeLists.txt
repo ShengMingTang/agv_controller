@@ -213,7 +213,3 @@ include_directories(
 add_executable(agv_controller_test_node src/test.cpp src/Controller.cpp src/Joystick.cpp src/UART.cpp src/Wifi.cpp src/PoseTracer.cpp src/RouteNodeGraph.cpp)
 target_link_libraries(agv_controller_test_node ${catkin_LIBRARIES})
 add_dependencies(agv_controller_test_node agv_controller_gencpp ${catkin_EXPORTED_TARGETS})
-
-add_executable(agv_controller_monitor_node src/monitor.cpp)
-target_link_libraries(agv_controller_monitor_node ${catkin_LIBRARIES})
-add_dependencies(agv_controller_monitor_node agv_monitor_gencpp ${catkin_EXPORTED_TARGETS})

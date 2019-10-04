@@ -10,42 +10,80 @@ PoseTracer::~PoseTracer()
 }
 void PoseTracer::start()
 {
-    this->starttime = ros::Time::now();
+    // this->starttime = ros::Time::now();
+    // ROS_WARN("double moving instruction, rejected, plz stop it first");
 }
 void PoseTracer::stop()
 {
-    double t = (ros::Time::now() - this->starttime).toSec();
-    this->is_driving = false;
-    this->dist += abs(this->v * t);
-    this->pose.orientation.x += this->velocity.orientation.x * t;
-    this->pose.orientation.y += this->velocity.orientation.y * t;
-    this->pose.orientation.w += this->velocity.orientation.w * t;
-    // clear
-    this->v = this->w = 0;
-    this->velocity.orientation.x = this->velocity.orientation.y = this->velocity.orientation.w = 0;
+    // double t = (ros::Time::now() - this->starttime).toSec();
+    // this->dist += abs(this->get_v() * t); // may have bug
+    // this->coor.x += this->vel.x * t;
+    // this->coor.y += this->vel.y * t;
+    // this->coor.w += this->vel.w * t;
+    // geometry_msgs::Quaternion tmp;
+    // tmp.x = this->vel.x * t;
+    // tmp.y = this->vel.y * t;
+    // tmp.z = this->vel.z * t;
+    // tmp.w = this->vel.w * t;
+    // this->path.push_back(tmp);
+    // // clear
+    // this->vel = {};
+}
+geometry_msgs::Quaternion PoseTracer::get_coor()const
+{
+    geometry_msgs::Quaternion tmp;
+    tmp.x = this->coor.x + this->vel.x * (ros::Time::now() - this->starttime).toSec();
+    tmp.y = this->coor.y + this->vel.y * (ros::Time::now() - this->starttime).toSec();
+    // tmp.z = this->coor.z + this->vel.z * (ros::Time::now() - this->starttime).toSec();
+    tmp.w = this->coor.w + this->vel.w * (ros::Time::now() - this->starttime).toSec();
+    return tmp;
 }
 double PoseTracer::get_dist()
 {
-    return this->dist + this->v * (ros::Time::now() - this->starttime).toSec();
+    double ret = 0;
+    for(auto it : this->path){
+        ret += sqrt(it.x * it.x + it.y * it.y);
+    }
+    ret += abs(this->get_v()) * (ros::Time::now() - this->starttime).toSec();
+    return ret;
 }
 void PoseTracer::reset()
 {
     this->dist = 0;
+    this->path.clear();
 }
-void PoseTracer::set_vw(double _v, double _w)
+void PoseTracer::clear()
 {
-    if(!this->is_driving){
-        this->is_driving = true;
-        // rotation first, one operation at a time
-        if(_w != 0 )
-            _v = 0;
+    this->coor = {};
+    this->vel = {};
+    this->dist = 0;
+    this->path.clear();
+    ROS_INFO("PoseTracer cleared");
+}
+void PoseTracer::set_vw(int _v, int _w)
+{
+    // different op
+    if(_v != this->get_v() || _w != this->get_w()){
+        // don't record redundant operation
+        if(this->get_v() || this->vel.w){
+            double t = (ros::Time::now() - this->starttime).toSec();
+            this->dist += abs(this->get_v() * t); // may have bug
+            this->coor.x += this->vel.x * t;
+            this->coor.y += this->vel.y * t;
+            this->coor.w += this->vel.w * t;
+            geometry_msgs::Quaternion tmp;
+            tmp.x = this->vel.x * t;
+            tmp.y = this->vel.y * t;
+            tmp.z = this->vel.z * t;
+            tmp.w = this->vel.w * t;
+            this->path.push_back(tmp);
+            // clear
+            this->vel = {};
+        }
+        this->vel.x = _v * cos(this->coor.w);
+        this->vel.y = _v * sin(this->coor.w);
+        this->vel.w = _w;
         this->v = _v;
-        this->w = _w;
-        this->velocity.orientation.x = _v * cos(this->pose.orientation.w);
-        this->velocity.orientation.y = _v * sin(this->pose.orientation.w);
-        this->velocity.orientation.w = _w / 10;
-    }
-    else{
-        ROS_WARN("double moving instruction, rejected, plz stop it first");
+        this->starttime = ros::Time::now();
     }
 }

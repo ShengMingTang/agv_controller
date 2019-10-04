@@ -12,7 +12,7 @@
 #include <cmath>
 #include "pybot.h"
 #include "Joystick.h"
-// #include "wifi.h"
+#include "Wifi.h"
 #include "Proc.h"
 #include "ProcTodo.h"
 #include "UART.h"
@@ -53,10 +53,10 @@ namespace pybot
         void clear(); //
         void log(); //
         void drive();
-        void set_node(int16_t _route, int16_t _node, double _w); //
+        
         /* op related */
         Opcode decode_opcode(sensor_msgs::Joy::ConstPtr& _ptr);
-        void decode_drive(sensor_msgs::Joy::ConstPtr& _ptr); //
+        pair<int, int> decode_drive(sensor_msgs::Joy::ConstPtr& _ptr); //
         sensor_msgs::Joy::ConstPtr get_joy_signal();
         
         /* ISR */
@@ -71,15 +71,14 @@ namespace pybot
         void status_tracking(const RobotStatus::ConstPtr& _msg);
         // these will be tracked
         Tracking_status tracking_status = Tracking_status::TRACKING_STATUS_NONE;
-        vector<int16_t> lidar_levels = vector<int16_t>(4);
+        vector<int16_t> lidar_levels = vector<int16_t>(4, LIDAR_LEVEL_L);
 
         /* Joystick */
         Joystick joystick;
+        Wifi wifi;
         
-        // Wifi wifi;
 
-        /* runtime */
-        // AGV-wise parameter
+        /* AGV-wise runtime parameter */
         Mode mode = Mode::MODE_IDLE;
         bool is_origin_set = false;
         bool is_calibed = false;
@@ -87,14 +86,12 @@ namespace pybot
         bool is_calib_begin = false;
         bool is_ok = true;
         /* driving accumulator */
-        // geometry_msgs::Pose pose; // position, orientation
         PoseTracer pose_tracer;
-
-
         Graph<wifi::RouteNode> graph;
         ProcTodo tasks;
+        
+        sensor_msgs::Joy::ConstPtr op_ptr;
         Opcode op = Opcode::OPCODE_NONE;
-
         // training related
         int training_route, training_node;
         // working related

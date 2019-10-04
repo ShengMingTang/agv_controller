@@ -7,9 +7,8 @@ Joystick::Joystick(const string& _parent_frame_id):
 frame_id{_parent_frame_id + "/joystick"}
 ,sub{this->n.subscribe(JOYSTICKIO_TOPIC, MSG_QUE_SIZE, &Joystick::callback, this)}
 ,last_press_t{ros::Time::now()}
-// ,timer{this->n.createTimer(ros::Duration(JOY_CD), &Joystick::timer_callback, this, true)}
 {
-    ROS_INFO("Joystick built\n");
+    ROS_INFO("Joystick built");
 }
 sensor_msgs::Joy::ConstPtr Joystick::pop()
 {
@@ -30,12 +29,5 @@ sensor_msgs::Joy::ConstPtr Joystick::pop()
 }
 Joystick::~Joystick()
 {
-    ROS_INFO("Joystick destroyed\n");
-}
-void Joystick::timer_callback(const ros::TimerEvent& _event)
-{
-    // this->is_frozen = false;
-    // ROS_INFO("Joy cd finished");
-    // this->timer.stop();
-    // this->timer.setPeriod(ros::Duration(JOY_CD));
+    ROS_INFO("Joystick destroyed");
 }

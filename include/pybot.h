@@ -9,7 +9,7 @@ using Ptr = boost::shared_ptr<T>;
 namespace  pybot
 {
     const int MSG_QUE_SIZE = 100;
-    const float JOY_CD = 0.5;
+    const float JOY_CD = 0.1;
     /* UART */
     enum class Tracking_status: int16_t
     {
@@ -61,6 +61,9 @@ namespace  pybot
         OPCODE_TARGET_NODE_D = '6',
         OPCODE_STOP = '7',
     };
+    /* motor limits */
+    const double MOTOR_LINEAR_LIMIT = 60;
+    const double MOTOR_ANGULAR_LIMIT = 10;
     enum class Errcode: int16_t
     {
         ERRCODE_NONE = 0,
@@ -71,6 +74,9 @@ namespace  pybot
         ERRCODE_LOST = -4,
         ERRCODE_INVAILD_OPCODE = -5,
     };
+    /* end UART */
+    
+    /* Joystick */
     // buttons
     const int
         JOYBUTTON_X = 0,
@@ -93,25 +99,28 @@ namespace  pybot
         JOYAXES_STICKRIGHT_UD = 3,
         JOYAXES_CROSS_LR = 4,
         JOYAXES_CROSS_UD = 5;
-    static map<Opcode, Mode> op_to_mode = {
-        {Opcode::OPCODE_IDLE, Mode::MODE_IDLE},
-        {Opcode::OPCODE_HOMEING, Mode::MODE_HOMING},
-        {Opcode::OPCODE_TRAIN_BEGIN, Mode::MODE_TRAINING},
-        {Opcode::OPCODE_WORK_BEGIN, Mode::MODE_WORKING},
-    };
     const char ROBOTINVOKE_TOPIC[] = "robot_incoke_topic";
     const char ROBOTSTATUS_TOPIC[] = "robot_status_topic";
-    // const char ROBOTVELCMD_TOPIC[] = "manual_cmd_vel";
-    /* motor limits */
-    const double MOTOR_LINEAR_LIMIT = 60;
-    const double MOTOR_ANGULAR_LIMIT = 10;
-    /* end UART */
-
-    /* Joystick */
     const char JOYSTICKIO_TOPIC[] = "joy";
     /* Wifi */
-    const char WIFI_TOPIC[] = "wifi_topic"; // implement
-
+    const char ROBOT_WIFI_TOPIC[] = "wifi_topic"; // implement
+    const char ROBOT_WIFI_SEND_SRV[] = "robot_wifi_send";
+    // wifi purpose
+    const string
+        WIFI_PUR_WS = "W",
+        WIFI_PUR_ROBOT = "R",
+        WIFI_PUR_ANS = "A",
+        WIFI_PUR_NODEOCC = "N",
+        WIFI_PUR_COST = "C";
+    const char
+        WIFI_ERR_NONE = '0',
+        WIFI_ERR_TIMEOUT = 'T',
+        WIFI_ERR_WS = 'W',
+        WIFI_ERR_ROBOT = 'R',
+        WIFI_ERR_ANS = 'A',
+        WIFI_ERR_NODE = 'N',
+        WIFI_ERR_COST = 'C',
+        WIFI_ERR_NETWORK = 'w';
     /* Debug*/
     const char MONITOR_TOPIC[] = "agv/monitor_topic";
 }

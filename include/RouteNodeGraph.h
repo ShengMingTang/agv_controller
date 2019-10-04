@@ -15,9 +15,15 @@ namespace pybot
     template<typename T>
     struct Edge
     {
+        Edge(T _dest, list<geometry_msgs::Quaternion> _path)
+        :v{_dest}
+        {
+            for(auto it : _path)
+                w += sqrt(it.x * it.x + it.y * it.y);
+        }
+        ~Edge() {}
         T v; // this node, adjacent node
-        geometry_msgs::Pose pose;
-        double w; // weight
+        double w = 0; // weight
         
     };
     template<typename T>
@@ -26,9 +32,10 @@ namespace pybot
     public:
         Graph() {}
         ~Graph() {}
-        void add_node(T _added, double _w);
+        void add_node(T _added, Edge<T> _edge);
         double cost_to_target(const T& _curr, const T& _target);
         list<T> path_to_target(const T& _curr, const T& _target);
+        void clear();
     private:
         vector< vector<T> > nodes;
         vector< vector<double> > weights;

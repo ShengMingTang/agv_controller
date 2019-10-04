@@ -17,7 +17,7 @@ namespace pybot
     class UART
     {
     public:
-        UART(const string& _paremt_frame_id);
+        UART(const string& _parent_frame_id);
         ~UART();
         RobotInvoke invoke(const char _op, const std::vector<int16_t> _args);
         bool is_invoke_valid(RobotInvoke _srv);
@@ -26,7 +26,6 @@ namespace pybot
         const string frame_id;
 
         ros::ServiceClient invoke_clt; // send uart request
-        // ros::Publisher velCmd_pub; // drive AGV
     };
 }
 #endif

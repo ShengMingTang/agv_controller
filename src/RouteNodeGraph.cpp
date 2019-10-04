@@ -1,16 +1,17 @@
 #include "RouteNodeGraph.h"
 // template specialization
 template<>
-void Graph<wifi::RouteNode>::add_node(wifi::RouteNode _added, double _w)
+void Graph<wifi::RouteNode>::add_node(wifi::RouteNode _added, Edge<wifi::RouteNode> _edge)
 {
-    ROS_INFO("R:%d, N:%d, W:%lf added", _added.route, _added.node, _w);
+
     if(_added.route >= 0){
         while(this->nodes.size() <= _added.route){
             this->nodes.push_back(vector<wifi::RouteNode>());
             this->weights.push_back(vector<double>());
         }
         this->nodes[_added.route].push_back(_added);
-        this->weights[_added.route].push_back(_w);
+        this->weights[_added.route].push_back(_edge.w);
+        ROS_INFO("R:%d, N:%d, W:%.1f @ (%.1f, %.1f) added", _added.route, _added.node, _edge.w, _added.pos.x, _added.pos.y);
     }
     else{
         ROS_ERROR("RouteNode Wifi Pass Error");
@@ -41,4 +42,10 @@ list<wifi::RouteNode> Graph<wifi::RouteNode>::path_to_target(const wifi::RouteNo
         ret.push_back(this->nodes[_target.route][i]);
     }
     return ret;
+}
+template<>
+void Graph<wifi::RouteNode>::clear()
+{
+    this->nodes.clear();
+    this->weights.clear();
 }

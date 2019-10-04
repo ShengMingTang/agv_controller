@@ -2,8 +2,8 @@
 Controller::Controller(const string& _id):
 base_driver{UART(_id)}
 ,joystick{Joystick(_id)}
+,wifi{Wifi{_id}}
 ,tracking_status_sub{this->n.subscribe(ROBOTSTATUS_TOPIC, MSG_QUE_SIZE, &Controller::status_tracking, this)}
-// ,vw{vector<int16_t>(2)}
 #if CONTROLLER_VERBOSE
 ,monitor{this->n.advertise<std_msgs::String>(MONITOR_TOPIC, MSG_QUE_SIZE)}
 #endif
@@ -16,11 +16,6 @@ Opcode Controller::decode_opcode(sensor_msgs::Joy::ConstPtr& _ptr)
     if(_ptr){
         vector<float> axes = _ptr->axes;
         vector<int32_t> buttons = _ptr->buttons;
-        // privileged instructions 
-        if(buttons[JOYBUTTON_RT]){
-            this->pose_tracer.set_vw(0, 0);
-            return Opcode::OPCODE_STOP;
-        }
         if(buttons[JOYBUTTON_A])
             return Opcode::OPCODE_IDLE;
         if(buttons[JOYBUTTON_BACK])
@@ -54,38 +49,42 @@ Opcode Controller::decode_opcode(sensor_msgs::Joy::ConstPtr& _ptr)
                 if(buttons[JOYBUTTON_X])
                     ret = Opcode::OPCODE_WORK_BEGIN;
         }
-        // decode vw
-        if(ret == Opcode::OPCODE_NONE){
-            if(axes[JOYAXES_CROSS_UD] != 0 || axes[JOYAXES_CROSS_LR] != 0){
-                ret = Opcode::OPCODE_DRIVE;
-                double v = axes[JOYAXES_CROSS_UD] * MOTOR_LINEAR_LIMIT / 2;
-                double w = axes[JOYAXES_CROSS_LR] * MOTOR_ANGULAR_LIMIT / 2;
-                this->pose_tracer.set_vw(v, w);
-            }
-        }
     }
     return ret;
 }
-void Controller::decode_drive(sensor_msgs::Joy::ConstPtr& _ptr)
+pair<int, int> Controller::decode_drive(sensor_msgs::Joy::ConstPtr& _ptr)
 {
+    if(_ptr){
+        vector<float> axes = _ptr->axes;
+        vector<int32_t> buttons = _ptr->buttons;
+        // privileged instructions 
+        if(buttons[JOYBUTTON_RT]){
+            return {0, 0};
+        }
+        // decode vw
+        if(axes[JOYAXES_CROSS_UD] != 0 || axes[JOYAXES_CROSS_LR] != 0){
+            int v = axes[JOYAXES_CROSS_UD] * MOTOR_LINEAR_LIMIT / 2;
+            int w = axes[JOYAXES_CROSS_LR] * MOTOR_ANGULAR_LIMIT / 2;
+            v = (w == 0) ? v : 0;
+            // this->pose_tracer.set_vw(v, w);
+            return {v, w};
+        }
+    }
+    return {this->pose_tracer.get_v(), this->pose_tracer.get_w()};
 }
 void Controller::drive()
 {
-    switch (this->op)
-    {
-        case Opcode::OPCODE_DRIVE:
-            this->pose_tracer.start();
-            this->base_driver.invoke((char)Opcode::OPCODE_DRIVE, 
-                {(int16_t)this->pose_tracer.get_v(), (int16_t)this->pose_tracer.get_w()});
-            break;
-        case Opcode::OPCODE_STOP:
-            this->pose_tracer.stop();
-            this->base_driver.invoke((char)Opcode::OPCODE_DRIVE, vector<int16_t>(2, 0));
-            break;
-        default:
-            break;
+    auto vel_cmd = this->decode_drive(this->op_ptr);
+    if(vel_cmd.first != this->pose_tracer.get_v() || vel_cmd.second != this->pose_tracer.get_w()){
+        auto srv = this->base_driver.invoke((char)Opcode::OPCODE_DRIVE, {vel_cmd.first, vel_cmd.second});
+        #if CONTROLLER_TEST
+            this->pose_tracer.set_vw(vel_cmd.first, vel_cmd.second);
+        #else
+            if(this->base_driver.is_invoke_valid(srv)){
+                this->pose_tracer.set_vw(vel_cmd.first, vel_cmd.second);
+            }
+        #endif
     }
-    
 }
 void Controller::setup()
 {
@@ -97,30 +96,35 @@ void Controller::isr()
 }
 bool Controller::check_safety()
 {
-    ; // not implemented
+    for(int i = 0; i < 4; i++){
+        if(this->lidar_levels[i] <= LIDAR_LEVEL_H){
+            ROS_WARN("Dir %d near an obstacle", i);
+        }
+    }
 }
 void Controller::monitor_display()
 {
     stringstream ss;
-    ss << "mode: " << (int)this->mode;
-    ss << ", (" << this->pose_tracer.get_v() << ", " << this->pose_tracer.get_w() << ")";
-    ss << ", trk: " << (int)this->tracking_status << ", ";
-    ss << "lidar:[";
-    for(auto it : this->lidar_levels){
-        ss << it << ",";
-    }
-    ss << "]";
+    char buff[100];
+    auto coor = this->pose_tracer.get_coor();
+    sprintf(buff, "mode:%d | trk:%d | p:(%+5.1f,%+5.1f,%+5.1f) | v:<%+2d,%+2d> | L:[%d,%d,%d,%d]",
+                (int)this->mode,
+                (int)this->tracking_status,
+                coor.x, coor.y, coor.w,
+                this->pose_tracer.get_v(), this->pose_tracer.get_w(),
+                this->lidar_levels[0], this->lidar_levels[1], this->lidar_levels[2], this->lidar_levels[2]
+                );
     std_msgs::String msg;
-    msg.data = ss.str();
+    msg.data = string(buff);
     this->monitor.publish(msg);
 }
 void Controller::loopOnce()
-{
-    // safety issue not implemented yet
-    
-    auto op_ptr = this->get_joy_signal();
+{    
+    this->op_ptr = this->get_joy_signal();
     this->op = this->decode_opcode(op_ptr);
-    // this->decode_drive(op_ptr);
+    // routine
+    this->check_safety();
+    // wifi implementation !
 
     // decode privileged instructions
     switch(this->op){
@@ -166,6 +170,8 @@ void Controller::loopOnce()
             ROS_WARN("Undefined mode");
             break;
     }
+    this->op_ptr = nullptr;
+    this->op = Opcode::OPCODE_NONE;
     #if CONTROLLER_VERBOSE
         this->monitor_display();
     #endif
@@ -215,12 +221,17 @@ void Controller::idle()
 }
 void Controller::clear()
 {
-    ROS_INFO("Clear data, Not implemented yet");
     this->is_origin_set = false;
     this->is_calibed = false;
     this->is_calib_begin = false;
     this->is_trained = false;
-    // graph clear
+    this->is_ok = true;
+    this->pose_tracer.clear();
+    this->graph.clear();
+    #if CONTROLLER_TEST
+        route_ct = node_ct = 0;
+    #endif
+    ROS_INFO("Clear data, check");
 }
 void Controller::homing()
 {
@@ -232,6 +243,7 @@ void Controller::homing()
             if(!this->is_origin_set){
                 this->is_origin_set = true;
                 srv = this->base_driver.invoke((char)Opcode::OPCODE_ORIGIN, vector<int16_t>());
+                this->pose_tracer.clear();
                 ROS_INFO("Origin set");
             }
             break;
@@ -267,15 +279,15 @@ void Controller::training()
             break;
         case Opcode::OPCODE_SETNODE:{
             srv = this->base_driver.invoke((char)Opcode::OPCODE_SETNODE, vector<int16_t>());
+            wifi::RouteNode nd;
             #if CONTROLLER_TEST
                 srv.response.feedback = vector<int16_t>(1, node_ct++);
-                wifi::RouteNode nd;
-                nd.route = this->training_route, nd.node = srv.response.feedback[0];
-                this->graph.add_node(nd, this->pose_tracer.get_dist());
+                nd.route = this->training_route, nd.node = srv.response.feedback[0], nd.pos = this->pose_tracer.get_coor();
+                this->graph.add_node(nd, {nd, this->pose_tracer.get_path()});
                 this->pose_tracer.reset();
             #else
                 if(this->base_driver.is_invoke_valid(srv)){
-                    this->graph.add_node(nd, srv.response.feedback[0]);
+                    this->graph.add_node(nd, {nd, this->pose_tracer.get_path()});
                 }
                 else{
                     ROS_ERROR("SetNode Invokation Ignored");
@@ -297,26 +309,10 @@ void Controller::training()
     }
     this->drive();
 }
-void Controller::set_node(int16_t _route, int16_t _node, double _w)
-{
-    // deprecated
-    ROS_INFO("Set RouteNode on R%d, N%d, W%lf", _route, _node, _w);
-    this->pose_tracer.reset();
-    // this->driving_dist = 0;
-}
 void Controller::working()
 {
     switch(this->op){
-        case Opcode::OPCODE_NONE:
-            break;
-        case Opcode::OPCODE_TARGET_ROUTE_U:
-            break;
-        case Opcode::OPCODE_TARGET_ROUTE_D:
-            break;
-        case Opcode::OPCODE_TARGET_NODE_U:
-            break;
-        case Opcode::OPCODE_TARGET_NODE_D:
-            break;
+
         default:
             ROS_WARN("In Working mode, %c is not allowed", (char)this->op);
             break;
