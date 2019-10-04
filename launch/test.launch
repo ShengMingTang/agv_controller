@@ -4,5 +4,4 @@
     <node pkg="joy" type="joy_node" name="joy_nodename"/>
 
     <!-- <node pkg="agv_controller" type="agv_controller_test_node" name="agv_test"/> -->
-    <node pkg="agv_controller" type="agv_controller_monitor_node" name="agv_monit"/>
 </launch>
