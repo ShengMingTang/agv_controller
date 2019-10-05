@@ -9,21 +9,11 @@ using namespace std;
 using namespace pybot;
 namespace pybot
 {
-    // struct geometry_msgs::Quaternion
-    // {
-    //     geometry_msgs::Quaternion(double _v, double _w, double _t)
-    //     :v{_v}, w{_w}, t{_t} {}
-    //     double v = 0;
-    //     double w = 0;
-    //     double t = 0;
-    // };
     class PoseTracer
     {
     public:
         PoseTracer();
         ~PoseTracer();
-        void start();
-        void stop();
         void reset();
         void clear();
         // almost real-time distance
@@ -36,10 +26,11 @@ namespace pybot
     private:
         // ros::NodeHandle n;
         geometry_msgs::Quaternion coor, vel;
+        double roundPi(double _w)const;
         ros::Time starttime;
         // piecewise integration
         int v, w;
-        double dist = 0;
+        // double dist = 0;
         list<geometry_msgs::Quaternion> path;
     };
 }

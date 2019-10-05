@@ -7,8 +7,6 @@
 #include <functional>
 #include "pybot.h"
 
-#define JOY_VERBOSE 0
-
 using namespace std;
 using namespace pybot;
 // using namespace tircgo_uart;

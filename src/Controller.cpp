@@ -75,16 +75,20 @@ pair<int, int> Controller::decode_drive(sensor_msgs::Joy::ConstPtr& _ptr)
 void Controller::drive()
 {
     auto vel_cmd = this->decode_drive(this->op_ptr);
-    if(vel_cmd.first != this->pose_tracer.get_v() || vel_cmd.second != this->pose_tracer.get_w()){
-        auto srv = this->base_driver.invoke((char)Opcode::OPCODE_DRIVE, {vel_cmd.first, vel_cmd.second});
-        #if CONTROLLER_TEST
-            this->pose_tracer.set_vw(vel_cmd.first, vel_cmd.second);
-        #else
+    // if(vel_cmd.first != this->pose_tracer.get_v() || vel_cmd.second != this->pose_tracer.get_w()){
+    #if CONTROLLER_TEST
+        this->pose_tracer.set_vw(vel_cmd.first, vel_cmd.second);
+    #else
+        if(vel_cmd.first != this->pose_tracer.get_v() || vel_cmd.second != this->pose_tracer.get_w()){
+            auto srv = this->base_driver.invoke((char)Opcode::OPCODE_DRIVE, {vel_cmd.first, vel_cmd.second});
             if(this->base_driver.is_invoke_valid(srv)){
                 this->pose_tracer.set_vw(vel_cmd.first, vel_cmd.second);
             }
-        #endif
-    }
+            else{
+                ROS_ERROR("Drive Srv-Err");
+            }
+        }
+    #endif
 }
 void Controller::setup()
 {
@@ -192,6 +196,10 @@ void Controller::idle()
             srv = this->base_driver.invoke((char)Opcode::OPCODE_HOMEING, vector<int16_t>());
             #if CONTROLLER_TEST
                 this->mode = Mode::MODE_HOMING;
+            #else
+                if(!(this->base_driver.is_invoke_valid(srv))){
+                    ROS_ERROR("Homing Srv-Err");
+                }
             #endif
             break;
         case Opcode::OPCODE_TRAIN_BEGIN:
@@ -204,14 +212,22 @@ void Controller::idle()
                 if(this->base_driver.is_invoke_valid(srv)){
                     this->training_route = srv.response.feedback[0];
                 }
+                else{
+                    ROS_ERROR("Traing begin Srv-Err, reset working route and node");
+                    this->training_route = this->training_node = 0;
+                }
             #endif
             break;
         case Opcode::OPCODE_WORK_BEGIN:
+            srv = this->base_driver.invoke((char)Opcode::OPCODE_WORK_BEGIN, vector<int16_t>());
             this->working_route = this->working_node = 0;
             #if CONTROLLER_TEST
                 this->mode = Mode::MODE_WORKING;
+            #else
+                if(!this->base_driver.is_invoke_valid(srv)){
+                    ROS_ERROR("Working begin Srv-Err");
+                }
             #endif
-            srv = this->base_driver.invoke((char)Opcode::OPCODE_WORK_BEGIN, vector<int16_t>());
             break;
         default:
             ROS_WARN("In Idle mode, %c is not allowed", (char)this->op);
@@ -243,15 +259,37 @@ void Controller::homing()
             if(!this->is_origin_set){
                 this->is_origin_set = true;
                 srv = this->base_driver.invoke((char)Opcode::OPCODE_ORIGIN, vector<int16_t>());
-                this->pose_tracer.clear();
-                ROS_INFO("Origin set");
+                #if CONTROLLER_TEST
+                    this->pose_tracer.clear();
+                    ROS_INFO("Origin set");
+                #else
+                    if(this->base_driver.is_invoke_valid(srv)){
+                        this->pose_tracer.clear();
+                        ROS_INFO("Origin set");
+                    }
+                    else{
+                        ROS_ERROR("Set Origin Srv-Err");
+                    }
+                #endif
             }
             break;
         case Opcode::OPCODE_CALIB_BEGIN:
             if(this->is_origin_set){
                 this->is_calib_begin = true;
                 srv = this->base_driver.invoke((char)Opcode::OPCODE_CALIB_BEGIN, vector<int16_t>());
-                ROS_INFO("Calibration begin");
+                #if CONTROLLER_TEST
+                    ROS_INFO("Calib begin");
+                #else
+                    if(this->base_driver.is_invoke_valid(srv)){
+                        ROS_INFO("Calibration begin");
+                    }
+                    else{
+                        ROS_ERROR("Calib begin Srv-Err");
+                    }
+                #endif
+            }
+            else{
+                ROS_ERROR("Calib begin Err, Set Origin first plz");
             }
             break;
         case Opcode::OPCODE_CALIB_FINISH:
@@ -259,10 +297,20 @@ void Controller::homing()
                 this->is_calibed = true;
                 this->is_calib_begin = false;
                 srv = this->base_driver.invoke((char)Opcode::OPCODE_CALIB_FINISH, vector<int16_t>());
-                ROS_INFO("Calibration finish, switch to Idle mode");
                 #if CONTROLLER_TEST
-                    this->mode = Mode(Mode::MODE_IDLE); // bug
+                    ROS_INFO("Calib finish");
+                    this->mode = Mode(Mode::MODE_IDLE);
+                #else
+                    if(this->base_driver.is_invoke_valid(srv)){
+                        ROS_INFO("Calibration finish, switch to Idle mode");
+                    }
+                    else{
+                        ROS_ERROR("Calib finish Srv-Err");
+                    }
                 #endif
+            }
+            else{
+                ROS_ERROR("Calib not begun, cmd rejected");
             }
             break;
         default:
@@ -290,7 +338,7 @@ void Controller::training()
                     this->graph.add_node(nd, {nd, this->pose_tracer.get_path()});
                 }
                 else{
-                    ROS_ERROR("SetNode Invokation Ignored");
+                    ROS_ERROR("SetNode Srv-Err, op ignored");
                 }
             #endif
             break;
@@ -300,8 +348,15 @@ void Controller::training()
             srv = this->base_driver.invoke((char)Opcode::OPCODE_TRAIN_FINISH, vector<int16_t>());
             #if CONTROLLER_TEST
                 this->mode = Mode::MODE_IDLE;
+                ROS_INFO("Training finished");
+            #else
+                if(this->base_driver.is_invoke_valid(srv)){
+                    ROS_INFO("Training finished");
+                }
+                else{
+                    ROS_ERROR("Traing finished Srv-Err");
+                }
             #endif
-            ROS_INFO("Training finished");
             break;
         default:
             ROS_INFO("In Training mode, %c is not allowed", (char)this->op);
