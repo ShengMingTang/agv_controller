@@ -25,7 +25,7 @@ namespace pybot
         list<geometry_msgs::Quaternion> get_path()const {return this->path;}
     private:
         // ros::NodeHandle n;
-        geometry_msgs::Quaternion coor, vel;
+        geometry_msgs::Quaternion coor = {}, vel = {};
         double roundPi(double _w)const;
         ros::Time starttime;
         // piecewise integration
