@@ -6,7 +6,7 @@ int main(int _argc, char** _argv)
 {
     ros::init(_argc, _argv, "controller_test");
     ros::NodeHandle nh;
-    ros::Rate loop_rate(40);
+    ros::Rate loop_rate(20);
     string id("114.000.000");
     if(_argc > 1)
         id = _argv[1];
