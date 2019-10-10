@@ -346,18 +346,23 @@ void Controller::drive()
     auto vel_cmd = this->decode_drive(this->op_ptr);
     double t = (ros::Time::now() - this->pose_tracer.get_starttime()).toSec();
     if(t >= AGV_CONTROLLER_DRIVE_TIMEOUT || vel_cmd.first != this->pose_tracer.get_v() || vel_cmd.second != this->pose_tracer.get_w()){ // different motion
-        // ROS_INFO("%d, %d   %d,%d", vel_cmd.first, vel_cmd.second, this->pose_tracer.get_v(), this->pose_tracer.get_w());
-        auto srv = this->base_driver.invoke((char)Opcode::OPCODE_DRIVE, {vel_cmd.first, vel_cmd.second});
-        #if AGV_CONTROLLER_TEST
-            this->pose_tracer.set_vw(vel_cmd.first, vel_cmd.second);
-        #else
-            if(this->base_driver.is_invoke_valid(srv)){
+        if(vel_cmd.first == 0 && this->pose_tracer.get_v() == 0 &&
+           vel_cmd.second == 0 && this->pose_tracer.get_w() == 0){
+               // don't send redundant 0 vel_cmd
+        }
+        else{
+            auto srv = this->base_driver.invoke((char)Opcode::OPCODE_DRIVE, {vel_cmd.first, vel_cmd.second});
+            #if AGV_CONTROLLER_TEST
                 this->pose_tracer.set_vw(vel_cmd.first, vel_cmd.second);
-            }
-            else{
-                ROS_ERROR("<Drive Srv-Err>");
-            }
-        #endif
+            #else
+                if(this->base_driver.is_invoke_valid(srv)){
+                    this->pose_tracer.set_vw(vel_cmd.first, vel_cmd.second);
+                }
+                else{
+                    ROS_ERROR("<Drive Srv-Err>");
+                }
+            #endif
+        }
     }
 }
 /* Sys related */
@@ -383,9 +388,11 @@ bool Controller::check_safety()
 {
     for(int i = 0; i < this->lidar_levels.size(); i++){
         if(this->lidar_levels[i] <= LIDAR_LEVEL_H){
-            ROS_WARN("Dir %d near an obstacle", i);
+            // ROS_WARN("Dir %d near an obstacle", i);
+            return false;
         }
     }
+    return true;
 }
 void Controller::status_tracking(const RobotStatus::ConstPtr& _msg)
 {
