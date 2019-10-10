@@ -5,6 +5,8 @@
 #include <cmath>
 #include <list>
 #include "pybot.h"
+#define PI 3.14159
+
 using namespace std;
 using namespace pybot;
 namespace pybot
@@ -14,24 +16,23 @@ namespace pybot
     public:
         PoseTracer();
         ~PoseTracer();
-        void reset();
         void clear();
-        // almost real-time distance
+        void reset_path(); // but keep vel
         void set_vw(int _v, int _w);
-        int get_v()const {return this->v;}
-        int get_w()const {return this->vel.w;}
+        // getter and setter
+        int16_t get_v()const {return this->v;}
+        int16_t get_w()const {return this->vel.w;}
         geometry_msgs::Quaternion get_coor()const;
         double get_dist();
         list<geometry_msgs::Quaternion> get_path()const {return this->path;}
     private:
-        // ros::NodeHandle n;
         geometry_msgs::Quaternion coor = {}, vel = {};
-        double roundPi(double _w)const;
         ros::Time starttime;
+        
         // piecewise integration
-        int v, w;
-        // double dist = 0;
-        list<geometry_msgs::Quaternion> path;
+        int16_t v, w;
+        list<geometry_msgs::Quaternion> path; // consisting of op vectors
     };
+    double roundPi(double _w);
 }
 #endif

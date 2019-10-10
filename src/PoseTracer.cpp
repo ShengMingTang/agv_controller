@@ -1,6 +1,5 @@
 #include "PoseTracer.h"
 #include <cmath>
-#define PI 3.14159
 PoseTracer::PoseTracer():
 starttime{ros::Time::now()}
 {
@@ -10,72 +9,73 @@ PoseTracer::~PoseTracer()
 {
     ROS_INFO("PoseTracer destructed");
 }
-double PoseTracer::roundPi(double _w)const
+void PoseTracer::clear()
+{
+    this->reset_path();
+    this->coor = {};
+    ROS_INFO("PoseTracer cleared");
+}
+void PoseTracer::reset_path()
+{
+    int v = this->v, w = this->w;
+    // reset
+    this->set_vw(0, 0);
+    this->path.clear();
+    // keep vel
+    this->set_vw(v, w);
+}
+void PoseTracer::set_vw(int _v, int _w)
+{
+    if(_v != this->v || _w != this->w){ // different op
+        if(this->v || this->w){ // won't record redundant operation
+            double t = (ros::Time::now() - this->starttime).toSec();
+            geometry_msgs::Quaternion motion;
+            motion.x = this->vel.x * t;
+            motion.y = this->vel.y * t;
+            motion.w = this->vel.w * t;
+            motion.w = roundPi(motion.w);
+            this->path.push_back(motion);
+            // update coor
+            this->coor.x += motion.x;
+            this->coor.y += motion.y;
+            this->coor.w += motion.w;
+            this->coor.w = roundPi(this->coor.w);
+            this->vel = {};
+        }
+        // coor purpose
+        this->vel.x = _v * cos(this->coor.w);
+        this->vel.y = _v * sin(this->coor.w);
+        this->vel.w = _w;
+        // main part
+        this->v = _v;
+        this->w = _w;
+        this->starttime = ros::Time::now();
+    }
+}
+geometry_msgs::Quaternion PoseTracer::get_coor()const
+{
+    geometry_msgs::Quaternion pos;
+    double t = (ros::Time::now() - this->starttime).toSec();
+    pos.x = this->coor.x + this->vel.x * t;
+    pos.y = this->coor.y + this->vel.y * t;
+    pos.w = this->coor.w + this->vel.w * t;
+    pos.w = roundPi(pos.w);
+    return pos;
+}
+double PoseTracer::get_dist()
+{
+    double dist = 0, t = (ros::Time::now() - this->starttime).toSec();
+    for(auto it : this->path){
+        dist += sqrt(it.x * it.x + it.y * it.y);
+    }
+    dist += abs(this->v * t);
+    return dist;
+}
+double pybot::roundPi(double _w)
 {
     while(_w < 0)
         _w += 2 * PI;
     while(_w >= 2 * PI)
         _w -= 2 * PI;
     return _w;
-}
-geometry_msgs::Quaternion PoseTracer::get_coor()const
-{
-    geometry_msgs::Quaternion tmp;
-    tmp.x = this->coor.x + this->vel.x * (ros::Time::now() - this->starttime).toSec();
-    tmp.y = this->coor.y + this->vel.y * (ros::Time::now() - this->starttime).toSec();
-    tmp.w = this->coor.w + this->vel.w * (ros::Time::now() - this->starttime).toSec();
-    tmp.w = this->roundPi(tmp.w);
-    return tmp;
-}
-double PoseTracer::get_dist()
-{
-    double ret = 0;
-    for(auto it : this->path){
-        ret += sqrt(it.x * it.x + it.y * it.y);
-    }
-    ret += abs(this->get_v()) * (ros::Time::now() - this->starttime).toSec();
-    return ret;
-}
-void PoseTracer::reset()
-{
-    // this->dist = 0;
-    this->path.clear();
-}
-void PoseTracer::clear()
-{
-    this->coor = {};
-    // this->vel = {};
-    // this->dist = 0;
-    this->path.clear();
-    this->starttime = ros::Time::now();
-    ROS_INFO("PoseTracer cleared");
-}
-void PoseTracer::set_vw(int _v, int _w)
-{
-    // different op
-    if(_v != this->get_v() || _w != this->get_w()){
-        // don't record redundant operation
-        if(this->get_v() || this->vel.w){
-            double t = (ros::Time::now() - this->starttime).toSec();
-            // this->dist += abs(this->get_v() * t); // may have bug
-            this->coor.x += this->vel.x * t;
-            this->coor.y += this->vel.y * t;
-            this->coor.w += this->vel.w * t;
-            this->coor.w = this->roundPi(this->coor.w);
-            geometry_msgs::Quaternion tmp;
-            tmp.x = this->vel.x * t;
-            tmp.y = this->vel.y * t;
-            tmp.z = this->vel.z * t;
-            tmp.w = this->vel.w * t;
-            tmp.w = this->roundPi(tmp.w);
-            this->path.push_back(tmp);
-            // clear
-            this->vel = {};
-        }
-        this->vel.x = _v * cos(this->coor.w);
-        this->vel.y = _v * sin(this->coor.w);
-        this->vel.w = _w;
-        this->v = _v;
-        this->starttime = ros::Time::now();
-    }
 }
