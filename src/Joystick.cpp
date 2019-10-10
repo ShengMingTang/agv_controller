@@ -23,7 +23,6 @@ sensor_msgs::Joy::ConstPtr Joystick::pop()
         else{ // else take it as bouncing, ignored
             this->que.pop();
         }
-
     }
     return nullptr;
 }
