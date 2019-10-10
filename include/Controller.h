@@ -12,24 +12,22 @@
 #include <cmath>
 #include "pybot.h"
 #include "Joystick.h"
-#include "Wifi.h"
-#include "Proc.h"
-#include "ProcTodo.h"
 #include "UART.h"
 #include "PoseTracer.h"
-#include "tircgo_uart/RobotStatus.h" // topic header for subscribing to the robot status
-#include "RouteNodeGraph.h"
-#include "wifi/RouteNode.h"
-#include "RouteNodeGraph.h"
 
-#define CONTROLLER_VERBOSE 1
-#define CONTROLLER_TEST 0
-#if CONTROLLER_TEST
+#include "tircgo_uart/RobotStatus.h" // topic header for subscribing to the robot status
+#include "tircgo_uart/RobotInvoke.h"
+
+// #include "wifi/RouteNode.h"
+// #include "Wifi.h"
+// #include "RouteNodeGraph.h"
+
+#if AGV_CONTROLLER_TEST
     static int16_t route_ct, node_ct;
 #endif
 using namespace std;
 using namespace pybot;
-
+using namespace tircgo_uart;
 namespace pybot
 {
     class Controller
@@ -37,30 +35,29 @@ namespace pybot
     public:
         Controller(const string& _id);
         ~Controller();
-        void setup(); //
-        void loopOnce();
+        void setup(); // stop @ here
+        void loopOnce(); // maybe function queue drivable
         bool ok() const{return this->is_ok;}
     private:
-        /* new version */
-        template<typename T>
-        void exec(Ptr<T> _ptr);
-        /* end */
-        bool check_safety(); //
+        /* Mode related */
         void idle();
         void homing();
         void training();
-        void working(); //
-        void clear(); //
-        void log(); //
-        void drive();
-        
-        /* op related */
+        void working(); // print only
+
+        /* Drive related */
         Opcode decode_opcode(sensor_msgs::Joy::ConstPtr& _ptr);
-        pair<int, int> decode_drive(sensor_msgs::Joy::ConstPtr& _ptr); //
-        sensor_msgs::Joy::ConstPtr get_joy_signal();
+        pair<int16_t, int16_t> decode_drive(sensor_msgs::Joy::ConstPtr& _ptr); //
+        void drive(); // stop @ here
         
-        /* ISR */
-        void isr();
+        /* Sys related */
+        void clear(); // print only
+        void log(); // print only
+        bool check_safety(); // tell near an obstable only
+        void status_tracking(const RobotStatus::ConstPtr& _msg); // UART pub
+        sensor_msgs::Joy::ConstPtr get_joy_signal(); // Joy pub
+        void monitor_display();
+        
         /* build time */
         ros::NodeHandle n;
         const string frame_id;
@@ -68,16 +65,19 @@ namespace pybot
         /* UART related */
         UART base_driver;
         ros::Subscriber tracking_status_sub; // subscribe to status
-        void status_tracking(const RobotStatus::ConstPtr& _msg);
-        // these will be tracked
-        Tracking_status tracking_status = Tracking_status::TRACKING_STATUS_NONE;
-        vector<int16_t> lidar_levels = vector<int16_t>(4, LIDAR_LEVEL_L);
-
+        PoseTracer pose_tracer; // driving accumulator
+        ros::Time last_drivetime;
+        // bool drive_timeout = false; // false mean need to invoke again
         /* Joystick */
         Joystick joystick;
-        Wifi wifi;
         
+        // stop @ here
+        // Wifi wifi;
+        // Graph<wifi::RouteNode> graph;
 
+        /* not necessary */
+        ros::Publisher monitor;
+        
         /* AGV-wise runtime parameter */
         Mode mode = Mode::MODE_IDLE;
         bool is_origin_set = false;
@@ -85,11 +85,6 @@ namespace pybot
         bool is_trained = false;
         bool is_calib_begin = false;
         bool is_ok = true;
-        /* driving accumulator */
-        PoseTracer pose_tracer;
-        Graph<wifi::RouteNode> graph;
-        ProcTodo tasks;
-        
         sensor_msgs::Joy::ConstPtr op_ptr;
         Opcode op = Opcode::OPCODE_NONE;
         // training related
@@ -97,13 +92,10 @@ namespace pybot
         // working related
         int target_route, target_node;
         int working_route, working_node;
+        // below will be tracked if AGV_CONTROLLER_UART_DOMIN is On
+        Tracking_status tracking_status = Tracking_status::TRACKING_STATUS_NONE;
+        vector<int16_t> lidar_levels;
 
-
-        /* Test */
-        #if CONTROLLER_VERBOSE
-            ros::Publisher monitor;
-            void monitor_display();
-        #endif
     };
 }
 #endif
