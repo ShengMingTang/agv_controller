@@ -1,0 +1,2 @@
+RouteNode node_occupied
+Cost cost
