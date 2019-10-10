@@ -48,18 +48,11 @@ namespace  pybot
         OPCODE_SETNODE = 'F',
         OPCODE_TRAIN_FINISH = 'G',
         OPCODE_WORK_BEGIN = 'H',
-        OPCODE_IDLE = 'I',
+        OPCODE_WORK_FINISH = 'I',
         OPCODE_POWEROFF = 'K',
         OPCODE_DRIVE = 'M',
-        // self-defined
+        /* self-defined */
         OPCODE_NONE = '0',
-        // OPCODE_TARGET_ROUTE_SET = '1',
-        OPCODE_TARGET_ROUTE_U = '2',
-        OPCODE_TARGET_ROUTE_D = '3',
-        // OPCODE_TARGET_NODE_SET = '4',
-        OPCODE_TARGET_NODE_U = '5',
-        OPCODE_TARGET_NODE_D = '6',
-        OPCODE_STOP = '7',
     };
     /* motor limits */
     const double MOTOR_LINEAR_LIMIT = 60;
