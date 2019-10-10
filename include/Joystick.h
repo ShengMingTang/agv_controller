@@ -7,9 +7,10 @@
 #include <functional>
 #include "pybot.h"
 
+#define JOY_BUFF_SIZE 50
 using namespace std;
 using namespace pybot;
-// using namespace tircgo_uart;
+
 namespace pybot
 {
     class Joystick
@@ -21,10 +22,10 @@ namespace pybot
     private:
         ros::NodeHandle n;
         const string frame_id;
-        ros::Subscriber sub;
         
-        sensor_msgs::Joy::ConstPtr ptr;
+        ros::Subscriber sub;
         void callback(const sensor_msgs::Joy::ConstPtr& _msg);
+        
         /* runtime */
         queue<sensor_msgs::Joy::ConstPtr> que;
         ros::Time last_press_t;
