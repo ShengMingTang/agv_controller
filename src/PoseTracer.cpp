@@ -26,31 +26,31 @@ void PoseTracer::reset_path()
 }
 void PoseTracer::set_vw(int _v, int _w)
 {
-    if(_v != this->v || _w != this->w){ // different op
-        if(this->v || this->w){ // won't record redundant operation
-            double t = (ros::Time::now() - this->starttime).toSec();
-            geometry_msgs::Quaternion motion;
-            motion.x = this->vel.x * t;
-            motion.y = this->vel.y * t;
-            motion.w = this->vel.w * t;
-            motion.w = roundPi(motion.w);
-            this->path.push_back(motion);
-            // update coor
-            this->coor.x += motion.x;
-            this->coor.y += motion.y;
-            this->coor.w += motion.w;
-            this->coor.w = roundPi(this->coor.w);
-            this->vel = {};
-        }
-        // coor purpose
-        this->vel.x = _v * cos(this->coor.w);
-        this->vel.y = _v * sin(this->coor.w);
-        this->vel.w = _w;
-        // main part
-        this->v = _v;
-        this->w = _w;
-        this->starttime = ros::Time::now();
+    // if(_v != this->v || _w != this->w){ // different op
+    if(this->v || this->w){ // won't record redundant operation
+        double t = (ros::Time::now() - this->starttime).toSec();
+        geometry_msgs::Quaternion motion;
+        motion.x = this->vel.x * t;
+        motion.y = this->vel.y * t;
+        motion.w = this->vel.w * t;
+        motion.w = roundPi(motion.w);
+        this->path.push_back(motion);
+        // update coor
+        this->coor.x += motion.x;
+        this->coor.y += motion.y;
+        this->coor.w += motion.w;
+        this->coor.w = roundPi(this->coor.w);
+        this->vel = {};
     }
+    // coor purpose
+    this->vel.x = _v * cos(this->coor.w);
+    this->vel.y = _v * sin(this->coor.w);
+    this->vel.w = _w;
+    // main part
+    this->v = _v;
+    this->w = _w;
+    this->starttime = ros::Time::now();
+    // }
 }
 geometry_msgs::Quaternion PoseTracer::get_coor()const
 {

@@ -21,10 +21,11 @@ namespace pybot
         void set_vw(int _v, int _w);
         // getter and setter
         int16_t get_v()const {return this->v;}
-        int16_t get_w()const {return this->vel.w;}
+        int16_t get_w()const {return this->w;}
         geometry_msgs::Quaternion get_coor()const;
         double get_dist();
         list<geometry_msgs::Quaternion> get_path()const {return this->path;}
+        ros::Time get_starttime()const {return this->starttime;}
     private:
         geometry_msgs::Quaternion coor = {}, vel = {};
         ros::Time starttime;
