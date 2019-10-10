@@ -223,7 +223,7 @@ AGV_LOOP_FREQ=20
 AGV_CONTROLLER_TEST=0
 AGV_CONTROLLER_VERBOSE=1 
 AGV_CONTROLLER_UART_DOMIN=1
-AGV_CONTROLLER_DRIVE_TIMEOUT=1.0
+AGV_CONTROLLER_DRIVE_TIMEOUT=0.5
 )
 target_link_libraries(agv_controller_test ${catkin_LIBRARIES})
 add_dependencies(agv_controller_test agv_controller_gencpp ${catkin_EXPORTED_TARGETS})
