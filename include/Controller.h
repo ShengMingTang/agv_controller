@@ -66,7 +66,6 @@ namespace pybot
         UART base_driver;
         ros::Subscriber tracking_status_sub; // subscribe to status
         PoseTracer pose_tracer; // driving accumulator
-        ros::Time last_drivetime;
         // bool drive_timeout = false; // false mean need to invoke again
         /* Joystick */
         Joystick joystick;

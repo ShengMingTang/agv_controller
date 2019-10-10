@@ -1,11 +1,11 @@
 #include "Controller.h"
 Controller::Controller(const string& _id):
 base_driver{UART(_id)}
-,last_drivetime {ros::Time::now()}
 ,joystick{Joystick(_id)}
 // ,wifi{Wifi{_id}}
 ,tracking_status_sub{this->n.subscribe(ROBOTSTATUS_TOPIC, MSG_QUE_SIZE, &Controller::status_tracking, this)}
 ,monitor{this->n.advertise<std_msgs::String>(MONITOR_TOPIC, MSG_QUE_SIZE)}
+,lidar_levels {vector<int16_t>(4, LIDAR_LEVEL_L)}
 {
     ROS_INFO("Controller constructed");
 }
@@ -18,10 +18,11 @@ void Controller::setup()
     ROS_INFO("Controller Setup:");
     ROS_INFO("Loop at frequency %d", AGV_LOOP_FREQ);
     ROS_INFO("Verbose : %d", AGV_CONTROLLER_VERBOSE);
-    ROS_INFO("UART dominates status :", AGV_CONTROLLER_UART_DOMIN);
+    ROS_INFO("UART dominates statusc : %d", AGV_CONTROLLER_UART_DOMIN);
 }
 void Controller::loopOnce()
-{    
+{
+    RobotInvoke srv;
     this->op_ptr = this->get_joy_signal();
     this->op = this->decode_opcode(op_ptr);
     // routine
@@ -32,7 +33,21 @@ void Controller::loopOnce()
     switch(this->op){
         // return statements
         case Opcode::OPCODE_POWEROFF:
-            this->log();
+            srv = this->base_driver.invoke((char)Opcode::OPCODE_POWEROFF, vector<int16_t>());
+            #if AGV_CONTROLLER_TEST
+                this->log();
+                this->is_ok = false;
+                ROS_INFO("Power off!");
+            #else
+                if(this->base_driver.is_invoke_valid(srv)){
+                    this->log();
+                    this->is_ok = false;
+                    ROS_INFO("Power off!");
+                }
+                else{
+                    ROS_ERROR("<Poweroff Srv-Err>");
+                }
+            #endif
             break;
         default:
             switch(this->mode){
@@ -82,9 +97,11 @@ void Controller::idle()
             srv = this->base_driver.invoke((char)Opcode::OPCODE_HOMEING, vector<int16_t>());
             #if AGV_CONTROLLER_TEST
                 this->mode = Mode::MODE_HOMING;
+                ROS_INFO("Start Homing");
             #else
                 if(this->base_driver.is_invoke_valid(srv)){
                     this->clear();
+                    ROS_INFO("Start Homing");
                 }
                 else{
                     ROS_ERROR("<Homing Srv-Err>");
@@ -97,9 +114,11 @@ void Controller::idle()
                 this->mode = Mode::MODE_TRAINING;
                 node_ct = 0;
                 this->training_route = route_ct++;
+                ROS_INFO("Start Training @ R%d", this->training_route);
             #else
                 if(this->base_driver.is_invoke_valid(srv)){
                     this->training_route = srv.response.feedback[0];
+                    ROS_INFO("Start Training @ R%d", this->training_route);
                 }
                 else{
                     ROS_ERROR("<Traing begin Srv-Err>");
@@ -111,6 +130,7 @@ void Controller::idle()
             this->working_route = this->working_node = 0;
             #if AGV_CONTROLLER_TEST
                 this->mode = Mode::MODE_WORKING;
+                ROS_INFO("Start Working !!");
             #else
                 if(this->base_driver.is_invoke_valid(srv)){
                     ROS_INFO("Start Working !! Not implemented");
@@ -133,16 +153,17 @@ void Controller::homing()
         case Opcode::OPCODE_NONE:
             break;
         case Opcode::OPCODE_ORIGIN:
-            if(!this->is_origin_set){
-                this->is_origin_set = true;
+            if(!this->is_calib_begin){
                 srv = this->base_driver.invoke((char)Opcode::OPCODE_ORIGIN, vector<int16_t>());
                 #if AGV_CONTROLLER_TEST
                     this->pose_tracer.clear();
+                    this->is_origin_set = true;
                     ROS_INFO("Origin set");
                 #else
                     if(this->base_driver.is_invoke_valid(srv)){\
                         this->pose_tracer.clear();
                         ROS_INFO("Origin set");
+                        this->is_origin_set = true;
                     }
                     else{
                         ROS_ERROR("<Origin set Srv-Err>");
@@ -151,7 +172,7 @@ void Controller::homing()
             }
             break;
         case Opcode::OPCODE_CALIB_BEGIN:
-            if(this->is_origin_set){
+            if(this->is_origin_set && !this->is_calib_begin){
                 srv = this->base_driver.invoke((char)Opcode::OPCODE_CALIB_BEGIN, vector<int16_t>());
                 #if AGV_CONTROLLER_TEST
                     this->is_calib_begin = true;
@@ -167,7 +188,10 @@ void Controller::homing()
                 #endif
             }
             else{
-                ROS_ERROR("[Calib begin Err], Set Origin first plz");
+                if(!this->is_origin_set)
+                    ROS_ERROR("[Calib begin Err], Set Origin first plz");
+                else if(this->is_calib_begin)
+                    ROS_ERROR("[Calib begin Err], calib already started");
             }
             break;
         case Opcode::OPCODE_CALIB_FINISH:
@@ -180,7 +204,7 @@ void Controller::homing()
                     this->mode = Mode(Mode::MODE_IDLE);
                 #else
                     if(this->base_driver.is_invoke_valid(srv)){
-                        ROS_INFO("Calibration finish, switch to Idle mode");
+                        ROS_INFO("Calib finish, switch to Idle mode");
                     }
                     else{
                         ROS_ERROR("<Calib_finish Srv-Err>");
@@ -200,7 +224,8 @@ void Controller::homing()
 void Controller::training()
 {
     RobotInvoke srv;
-    // wifi::RouteNode nd;
+    geometry_msgs::Quaternion pos;
+    // node
     switch(this->op){
         case Opcode::OPCODE_NONE:
             break;
@@ -208,15 +233,16 @@ void Controller::training()
             srv = this->base_driver.invoke((char)Opcode::OPCODE_SETNODE, vector<int16_t>());
             #if AGV_CONTROLLER_TEST
                 srv.response.feedback = vector<int16_t>(1, node_ct++);
-                // nd.route = this->training_route;
-                // nd.node = srv.response.feedback[0];
-                // nd.pos = this->pose_tracer.get_coor();
-                // this->graph.add_node(nd, {nd, this->pose_tracer.get_path()});
+                // graph routine
+                pos = this->pose_tracer.get_coor();
                 this->pose_tracer.reset_path();
+                ROS_INFO("Node R%d, N%d @ (%f,%f)", this->training_route, node_ct, pos.x, pos.y);
             #else
                 if(this->base_driver.is_invoke_valid(srv)){
-                    // this->graph.add_node(nd, {nd, this->pose_tracer.get_path()});
-                    ROS_INFO("Node R%d, N%d");
+                    // graph routine
+                    pos = this->pose_tracer.get_coor();
+                    this->pose_tracer.reset_path();
+                    ROS_INFO("Node R%d, N%d @ (%f,%f)", this->training_route, srv.response.feedback[0], pos.x, pos.y);
                 }
                 else{
                     ROS_ERROR("<SetNode Srv-Err>");
@@ -306,10 +332,10 @@ pair<int16_t, int16_t> Controller::decode_drive(sensor_msgs::Joy::ConstPtr& _ptr
         }
         // decode vw
         if(axes[JOYAXES_CROSS_UD] != 0 || axes[JOYAXES_CROSS_LR] != 0){
-            int16_t v = axes[JOYAXES_CROSS_UD] * MOTOR_LINEAR_LIMIT / 2;
-            int16_t w = axes[JOYAXES_CROSS_LR] * MOTOR_ANGULAR_LIMIT / 2;
-            v = (w == 0) ? v : 0;
-            return {v, w};
+            int16_t vv = axes[JOYAXES_CROSS_UD] * MOTOR_LINEAR_LIMIT / 2;
+            int16_t ww = axes[JOYAXES_CROSS_LR] * MOTOR_ANGULAR_LIMIT / 2;
+            vv = (ww == 0) ? vv : 0;
+            return {vv, ww};
         }
     }
     // empty
@@ -318,20 +344,21 @@ pair<int16_t, int16_t> Controller::decode_drive(sensor_msgs::Joy::ConstPtr& _ptr
 void Controller::drive()
 {
     auto vel_cmd = this->decode_drive(this->op_ptr);
-    #if AGV_CONTROLLER_TEST
-        this->pose_tracer.set_vw(vel_cmd.first, vel_cmd.second);
-    #else
-        double t = (ros::Time::now() - this->last_drivetime).toSec();
-        if(t >= AGV_CONTROLLER_DRIVE_TIMEOUT || vel_cmd.first != this->pose_tracer.get_v() || vel_cmd.second != this->pose_tracer.get_w()){ // different motion
-            auto srv = this->base_driver.invoke((char)Opcode::OPCODE_DRIVE, {vel_cmd.first, vel_cmd.second});
+    double t = (ros::Time::now() - this->pose_tracer.get_starttime()).toSec();
+    if(t >= AGV_CONTROLLER_DRIVE_TIMEOUT || vel_cmd.first != this->pose_tracer.get_v() || vel_cmd.second != this->pose_tracer.get_w()){ // different motion
+        // ROS_INFO("%d, %d   %d,%d", vel_cmd.first, vel_cmd.second, this->pose_tracer.get_v(), this->pose_tracer.get_w());
+        auto srv = this->base_driver.invoke((char)Opcode::OPCODE_DRIVE, {vel_cmd.first, vel_cmd.second});
+        #if AGV_CONTROLLER_TEST
+            this->pose_tracer.set_vw(vel_cmd.first, vel_cmd.second);
+        #else
             if(this->base_driver.is_invoke_valid(srv)){
                 this->pose_tracer.set_vw(vel_cmd.first, vel_cmd.second);
             }
             else{
                 ROS_ERROR("<Drive Srv-Err>");
             }
-        }
-    #endif
+        #endif
+    }
 }
 /* Sys related */
 void Controller::clear()
