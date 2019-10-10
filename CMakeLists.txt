@@ -8,13 +8,13 @@ add_compile_options(-std=c++11)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
-  tircgo_uart
   message_generation
   roscpp
   rospy
   std_msgs
   geometry_msgs
   sensor_msgs
+  tircgo_uart
 )
 
 ## System dependencies are found with CMake's conventions
@@ -51,11 +51,12 @@ find_package(catkin REQUIRED COMPONENTS
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-# add_message_files(
-  # FILES
-  # Message1.msg
-  # Message2.msg
-# )
+add_message_files(
+  FILES
+  Cost.msg
+  RouteNode.msg
+  CtrlData.msg
+)
 
 ## Generate services in the 'srv' folder
 # add_service_files(
@@ -210,6 +211,19 @@ include_directories(
 
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
-add_executable(agv_controller_test_node src/test.cpp src/Controller.cpp src/Joystick.cpp src/UART.cpp src/Wifi.cpp src/PoseTracer.cpp src/RouteNodeGraph.cpp)
-target_link_libraries(agv_controller_test_node ${catkin_LIBRARIES})
-add_dependencies(agv_controller_test_node agv_controller_gencpp ${catkin_EXPORTED_TARGETS})
+add_executable(agv_controller_test 
+  src/test.cpp
+  src/Controller.cpp
+  src/Joystick.cpp
+  src/UART.cpp
+  src/PoseTracer.cpp
+)
+target_compile_definitions(agv_controller_test PUBLIC 
+AGV_LOOP_FREQ=20 
+AGV_CONTROLLER_TEST=0
+AGV_CONTROLLER_VERBOSE=1 
+AGV_CONTROLLER_UART_DOMIN=1
+AGV_CONTROLLER_DRIVE_TIMEOUT=0.5
+)
+target_link_libraries(agv_controller_test ${catkin_LIBRARIES})
+add_dependencies(agv_controller_test agv_controller_gencpp ${catkin_EXPORTED_TARGETS})
