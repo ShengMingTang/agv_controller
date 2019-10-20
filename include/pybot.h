@@ -2,10 +2,7 @@
 #define PYBOT_H
 // #include <set>
 using namespace std;
-template<typename T>
-using ConstPtr = boost::shared_ptr<T const>;
-template<typename T>
-using Ptr = boost::shared_ptr<T>;
+
 namespace  pybot
 {
     const int MSG_QUE_SIZE = 100;
@@ -53,6 +50,10 @@ namespace  pybot
         OPCODE_DRIVE = 'M',
         /* self-defined */
         OPCODE_NONE = '0',
+        OPCODE_RT_UP = '1',
+        OPCODE_RT_DOWN = '2',
+        OPCODE_ND_UP = '3',
+        OPCODE_ND_DOWN = '4',
     };
     /* motor limits */
     const double MOTOR_LINEAR_LIMIT = 60;
@@ -103,7 +104,7 @@ namespace  pybot
         WIFI_PUR_WS = "W",
         WIFI_PUR_ROBOT = "R",
         WIFI_PUR_ANS = "A",
-        WIFI_PUR_NODEOCC = "N",
+        WIFI_PUR_NODEOCP = "N",
         WIFI_PUR_COST = "C";
     const char
         WIFI_ERR_NONE = '0',
@@ -114,7 +115,8 @@ namespace  pybot
         WIFI_ERR_NODE = 'N',
         WIFI_ERR_COST = 'C',
         WIFI_ERR_NETWORK = 'w';
+    const int WIFI_BUFF_SIZE = 50;
     /* Debug*/
-    const char MONITOR_TOPIC[] = "agv/monitor_topic";
+    const char MONITOR_TOPIC[] = "controller/monitor_topic";
 }
 #endif

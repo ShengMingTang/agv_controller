@@ -5,29 +5,31 @@
 #include <geometry_msgs/Pose.h>
 #include <std_msgs/String.h>
 #include <vector>
-#include <map>
 #include <sstream>
 #include <string>
 #include <queue>
 #include <cmath>
+#include <list>
 #include "pybot.h"
 #include "Joystick.h"
 #include "UART.h"
 #include "PoseTracer.h"
+#include "Wifi.h"
+#include "RouteNodeGraph.h"
 
 #include "tircgo_uart/RobotStatus.h" // topic header for subscribing to the robot status
 #include "tircgo_uart/RobotInvoke.h"
 
-// #include "wifi/RouteNode.h"
-// #include "Wifi.h"
-// #include "RouteNodeGraph.h"
 
 #if AGV_CONTROLLER_TEST
     static int16_t route_ct, node_ct;
 #endif
+
+
 using namespace std;
 using namespace pybot;
 using namespace tircgo_uart;
+using namespace tircgo_msgs;
 namespace pybot
 {
     class Controller
@@ -40,6 +42,7 @@ namespace pybot
         bool ok() const{return this->is_ok;}
     private:
         /* Mode related */
+        void isr(const Tracking_status& _cond); // interrupt service routine
         void idle();
         void homing();
         void training();
@@ -71,8 +74,8 @@ namespace pybot
         Joystick joystick;
         
         // stop @ here
-        // Wifi wifi;
-        // Graph<wifi::RouteNode> graph;
+        Wifi wifi;
+        Graph<tircgo_msgs::RouteNode> graph;
 
         /* not necessary */
         ros::Publisher monitor;
@@ -87,10 +90,12 @@ namespace pybot
         sensor_msgs::Joy::ConstPtr op_ptr;
         Opcode op = Opcode::OPCODE_NONE;
         // training related
-        int training_route, training_node;
+        int16_t training_route = 0, training_node = 0;
         // working related
-        int target_route, target_node;
-        int working_route, working_node;
+        RouteNode target_rn;
+        RouteNode ocp_rn;
+        RouteNode rn_none;
+        list<RouteNode> work_list;
         // below will be tracked if AGV_CONTROLLER_UART_DOMIN is On
         Tracking_status tracking_status = Tracking_status::TRACKING_STATUS_NONE;
         vector<int16_t> lidar_levels;

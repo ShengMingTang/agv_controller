@@ -2,11 +2,12 @@
 Controller::Controller(const string& _id):
 base_driver{UART(_id)}
 ,joystick{Joystick(_id)}
-// ,wifi{Wifi{_id}}
+,wifi{Wifi{_id}}
 ,tracking_status_sub{this->n.subscribe(ROBOTSTATUS_TOPIC, MSG_QUE_SIZE, &Controller::status_tracking, this)}
 ,monitor{this->n.advertise<std_msgs::String>(MONITOR_TOPIC, MSG_QUE_SIZE)}
 ,lidar_levels {vector<int16_t>(4, LIDAR_LEVEL_L)}
 {
+    this->rn_none.route = this->rn_none.node = -1;
     ROS_INFO("Controller constructed");
 }
 Controller::~Controller()
@@ -19,6 +20,7 @@ void Controller::setup()
     ROS_INFO("Loop at frequency %d", AGV_LOOP_FREQ);
     ROS_INFO("Verbose : %d", AGV_CONTROLLER_VERBOSE);
     ROS_INFO("UART dominates statusc : %d", AGV_CONTROLLER_UART_DOMIN);
+    // can wait for UART in the future
 }
 void Controller::loopOnce()
 {
@@ -28,17 +30,15 @@ void Controller::loopOnce()
     // routine
     this->check_safety();
     // wifi implementation !
-
-    // decode privileged instructions
-    switch(this->op){
-        // return statements
-        case Opcode::OPCODE_POWEROFF:
-            srv = this->base_driver.invoke((char)Opcode::OPCODE_POWEROFF, vector<int16_t>());
-            #if AGV_CONTROLLER_TEST
-                this->log();
-                this->is_ok = false;
-                ROS_INFO("Power off!");
-            #else
+    if(!this->wifi.empty()){
+        // processing wifi
+    }
+    else{
+        // decode privileged instructions
+        switch(this->op){
+            // return statements
+            case Opcode::OPCODE_POWEROFF:
+                srv = this->base_driver.invoke((char)Opcode::OPCODE_POWEROFF, vector<int16_t>());
                 if(this->base_driver.is_invoke_valid(srv)){
                     this->log();
                     this->is_ok = false;
@@ -47,45 +47,50 @@ void Controller::loopOnce()
                 else{
                     ROS_ERROR("<Poweroff Srv-Err>");
                 }
-            #endif
-            break;
-        default:
-            switch(this->mode){
-                case Mode::MODE_IDLE:
-                    this->idle();
-                    break;
-                case Mode::MODE_HOMING:
-                    this->homing();
-                    break;
-                case Mode::MODE_TRAINING:
-                    if(this->is_calibed)
-                        this->training();
-                    else{
-                        ROS_WARN("Not Homed but want to enter Trainng mode");
-                        ROS_WARN("Direct forced switch to Idle mode");
-                        this->mode = Mode::MODE_IDLE;
-                    }
-                    break;
-                case Mode::MODE_WORKING:
-                    if(this->is_trained)
-                        this->working();
-                    else{
-                        ROS_WARN("Not Trained but want to enter Working mode");
-                        ROS_WARN("Direct forced switch to Idle mode");
-                        this->mode = Mode::MODE_IDLE;
-                    }
-                    break;
-                default:
-                    ROS_WARN("Undefined mode");
-                    break;
-            }
-            break;
+                break;
+            default:
+                switch(this->mode){
+                    case Mode::MODE_IDLE:
+                        this->idle();
+                        break;
+                    case Mode::MODE_HOMING:
+                        this->homing();
+                        break;
+                    case Mode::MODE_TRAINING:
+                        if(this->is_calibed)
+                            this->training();
+                        else{
+                            ROS_WARN("Not Homed but want to enter Trainng mode");
+                            ROS_WARN("Direct forced switch to Idle mode");
+                            this->mode = Mode::MODE_IDLE;
+                        }
+                        break;
+                    case Mode::MODE_WORKING:
+                        if(this->is_trained)
+                            this->working();
+                        else{
+                            ROS_WARN("Not Trained but want to enter Working mode");
+                            ROS_WARN("Direct forced switch to Idle mode");
+                            this->mode = Mode::MODE_IDLE;
+                        }
+                        break;
+                    default:
+                        ROS_WARN("Undefined mode");
+                        break;
+                }
+                break;
+        }
     }
     this->op_ptr = nullptr;
     this->op = Opcode::OPCODE_NONE;
     #if AGV_CONTROLLER_VERBOSE
         this->monitor_display();
     #endif
+}
+void Controller::isr(const Tracking_status& _cond)
+{
+    // implement
+    ROS_INFO("Encounter some obstacle or out of track");
 }
 void Controller::idle()
 {
@@ -108,8 +113,9 @@ void Controller::idle()
                 }
             #endif
             break;
-        case Opcode::OPCODE_TRAIN_BEGIN:
-            srv = this->base_driver.invoke((char)Opcode::OPCODE_TRAIN_BEGIN, vector<int16_t>());
+        case Opcode::OPCODE_TRAIN_BEGIN:{
+            vector<int16_t> train_args = {this->training_route};
+            srv = this->base_driver.invoke((char)Opcode::OPCODE_TRAIN_BEGIN, train_args);
             #if AGV_CONTROLLER_TEST
                 this->mode = Mode::MODE_TRAINING;
                 node_ct = 0;
@@ -117,7 +123,6 @@ void Controller::idle()
                 ROS_INFO("Start Training @ R%d", this->training_route);
             #else
                 if(this->base_driver.is_invoke_valid(srv)){
-                    this->training_route = srv.response.feedback[0];
                     ROS_INFO("Start Training @ R%d", this->training_route);
                 }
                 else{
@@ -125,9 +130,9 @@ void Controller::idle()
                 }
             #endif
             break;
+        }
         case Opcode::OPCODE_WORK_BEGIN:
-            srv = this->base_driver.invoke((char)Opcode::OPCODE_WORK_BEGIN, vector<int16_t>());
-            this->working_route = this->working_node = 0;
+            srv = this->base_driver.invoke((char)Opcode::OPCODE_WORK_BEGIN, vector<int16_t>(this->target_rn.route, this->target_rn.node));
             #if AGV_CONTROLLER_TEST
                 this->mode = Mode::MODE_WORKING;
                 ROS_INFO("Start Working !!");
@@ -141,7 +146,24 @@ void Controller::idle()
             #endif
             break;
         default:
-            ROS_WARN("In Idle mode, %c is not allowed", (char)this->op);
+            if(!this->work_list.empty()){
+                RouteNode next_rn = *(this->work_list.begin());
+                if(this->ocp_rn.route != next_rn.route || this->ocp_rn.node != next_rn.node){
+                    bool is_ocp = this->wifi.node_ocp(next_rn);
+                    if(is_ocp){
+                        // wait
+                        ROS_INFO("Node occupied, waiting");
+                    }
+                    else{
+                        this->ocp_rn = this->work_list.front(); // claim
+                        vector<int16_t> work_args{this->ocp_rn.route, this->ocp_rn.node};
+                        this->base_driver.invoke((char)Opcode::OPCODE_WORK_BEGIN, work_args);
+                    }
+                }
+            }
+            else{
+                ROS_WARN("In Idle mode, %c is not allowed", (char)this->op);
+            }
             break;
     }
     this->drive();
@@ -254,10 +276,12 @@ void Controller::training()
             srv = this->base_driver.invoke((char)Opcode::OPCODE_TRAIN_FINISH, vector<int16_t>());
             #if AGV_CONTROLLER_TEST
                 this->mode = Mode::MODE_IDLE;
+                this->training_route++;
                 ROS_INFO("Training finished");
             #else
                 if(this->base_driver.is_invoke_valid(srv)){
-                    ROS_INFO("Training finished");
+                    this->training_route++;
+                    ROS_INFO("Training finished, training route inc");
                 }
                 else{
                     ROS_ERROR("<Traing finished Srv-Err>");
@@ -272,10 +296,15 @@ void Controller::training()
 }
 void Controller::working()
 {
-    switch(this->op){
-        default:
-            ROS_WARN("Workin mode not implemented");
-            break;
+    if(this->tracking_status == Tracking_status::TRACKING_STATUS_ARRIVAL){
+        auto srv = this->base_driver.invoke((char)Opcode::OPCODE_WORK_FINISH, vector<int16_t>());
+        if(this->base_driver.is_invoke_valid(srv)){
+            this->work_list.pop_front();
+            ROS_INFO("Work finished");
+        }
+        else{
+            ROS_ERROR("<Working finish Srv-Err>");
+        }
     }
 }
 /* Drive related */
@@ -297,6 +326,22 @@ Opcode Controller::decode_opcode(sensor_msgs::Joy::ConstPtr& _ptr)
                     ret = Opcode::OPCODE_TRAIN_BEGIN;
                 else if(buttons[JOYBUTTON_B])
                     ret = Opcode::OPCODE_WORK_BEGIN;
+                #if AGV_CONTROLLER_WORK_MAN
+                    else if(buttons[JOYBUTTON_RT]){
+                        this->target_rn.route++;
+                    }
+                    else if(buttons[JOYBUTTON_LT]){
+                        if(this->target_rn.route - 1 >= 0)
+                            this->target_rn.route--;
+                    }
+                    else if(buttons[JOYBUTTON_RB]){
+                        this->target_rn.node++;
+                    }
+                    else if(buttons[JOYBUTTON_LB]){
+                        if(this->target_rn.node - 1 >= 0)
+                            this->target_rn.node--;
+                    }
+                #endif
                 break;
             case Mode::MODE_HOMING:
                 if(buttons[JOYBUTTON_Y])
@@ -313,10 +358,11 @@ Opcode Controller::decode_opcode(sensor_msgs::Joy::ConstPtr& _ptr)
                     ret = Opcode::OPCODE_TRAIN_FINISH;
                 break;
             case Mode::MODE_WORKING:
-                if(buttons[JOYBUTTON_X])
-                    ret = Opcode::OPCODE_WORK_BEGIN;
-                else if(buttons[JOYBUTTON_RT])
+                if(buttons[JOYBUTTON_B])
                     ret = Opcode::OPCODE_WORK_FINISH;
+                break;
+            default:
+                break;
         }
     }
     return ret;
@@ -327,7 +373,7 @@ pair<int16_t, int16_t> Controller::decode_drive(sensor_msgs::Joy::ConstPtr& _ptr
         vector<float> axes = _ptr->axes;
         vector<int32_t> buttons = _ptr->buttons;
         // privileged instructions 
-        if(buttons[JOYBUTTON_LT]){
+        if(buttons[JOYBUTTON_A]){
             return {0, 0};
         }
         // decode vw
@@ -388,7 +434,7 @@ bool Controller::check_safety()
 {
     for(int i = 0; i < this->lidar_levels.size(); i++){
         if(this->lidar_levels[i] <= LIDAR_LEVEL_H){
-            // ROS_WARN("Dir %d near an obstacle", i);
+            ROS_WARN("Dir %d near an obstacle", i);
             return false;
         }
     }
@@ -431,12 +477,13 @@ void Controller::monitor_display()
     stringstream ss;
     char buff[100];
     auto coor = this->pose_tracer.get_coor();
-    sprintf(buff, "mode:%d | trk:%d | p:(%+5.1f,%+5.1f,%+5.1f) | v:<%+2d,%+2d> | L:[%d,%d,%d,%d]",
+    sprintf(buff, "mode:%d| trk:%d| p:(%+5.1f,%+5.1f,%+5.1f)| v:<%+2d,%+2d>| L:[%d,%d,%d,%d]| T<%d,%d>",
                 (int)this->mode,
                 (int)this->tracking_status,
                 coor.x, coor.y, coor.w,
                 this->pose_tracer.get_v(), this->pose_tracer.get_w(),
-                this->lidar_levels[0], this->lidar_levels[1], this->lidar_levels[2], this->lidar_levels[2]
+                this->lidar_levels[0], this->lidar_levels[1], this->lidar_levels[2], this->lidar_levels[2],
+                this->target_rn.route, this->target_rn.node
                 );
     std_msgs::String msg;
     msg.data = string(buff);

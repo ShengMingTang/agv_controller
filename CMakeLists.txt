@@ -214,13 +214,15 @@ add_executable(tircgo_controller_node
   src/Joystick.cpp
   src/UART.cpp
   src/PoseTracer.cpp
+  src/Wifi.cpp
 )
 target_compile_definitions(tircgo_controller_node PUBLIC 
-AGV_LOOP_FREQ=20 
-AGV_CONTROLLER_TEST=0
-AGV_CONTROLLER_VERBOSE=1 
-AGV_CONTROLLER_UART_DOMIN=1
-AGV_CONTROLLER_DRIVE_TIMEOUT=0.5
+  AGV_LOOP_FREQ=20 
+  AGV_CONTROLLER_TEST=1
+  AGV_CONTROLLER_VERBOSE=1 
+  AGV_CONTROLLER_UART_DOMIN=1
+  AGV_CONTROLLER_DRIVE_TIMEOUT=0.5
+  AGV_CONTROLLER_WORK_MAN=1
 )
 target_link_libraries(tircgo_controller_node ${catkin_LIBRARIES})
 add_dependencies(tircgo_controller_node tircgo_controller_gencpp ${catkin_EXPORTED_TARGETS})
