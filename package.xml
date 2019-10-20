@@ -56,7 +56,7 @@
   <build_depend>sensor_msgs</build_depend>
   <build_depend>joy</build_depend>
   <build_depend>tircgo_uart</build_depend>
-  <!-- <build_depend>ros_wifi</build_depend> -->
+  <build_depend>tircgo_msgs</build_depend>
 
   <build_export_depend>roscpp</build_export_depend>
   <build_export_depend>rospy</build_export_depend>
@@ -65,7 +65,7 @@
   <build_export_depend>sensor_msgs</build_export_depend>
   <build_export_depend>joy</build_export_depend>
   <build_export_depend>tircgo_uart</build_export_depend>
-  <!-- <build_export_depend>ros_wifi</build_export_depend> -->
+  <build_export_depend>tircgo_msgs</build_export_depend>
 
   <exec_depend>roscpp</exec_depend>
   <exec_depend>rospy</exec_depend>
@@ -74,7 +74,7 @@
   <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>joy</exec_depend>
   <exec_depend>tircgo_uart</exec_depend>
-  <!-- <exec_depend>ros_wifi</exec_depend> -->
+  <exec_depend>tircgo_msgs</exec_depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>
