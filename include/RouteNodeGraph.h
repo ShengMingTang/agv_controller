@@ -3,12 +3,22 @@
 #include <ros/ros.h>
 #include <vector>
 #include <list>
-#include <geometry_msgs/Pose.h>
+#include <geometry_msgs/Quaternion.h>
 #include "pybot.h"
-#include "agv_controller/RouteNode.h"
+#include "tircgo_msgs/RouteNode.h"
 using namespace std;
 using namespace pybot;
-
+using namespace tircgo_msgs;
+// Layout
+// [0, 0] - [0, 1] - [0, 2] - ...
+//   ||
+// [1, 0] - [1, 1] - [1, 2] - ...
+//   ||
+// [2, 0] - ...
+//   ||
+//   .
+//   .
+//   .
 namespace pybot
 {
     list<geometry_msgs::Quaternion> flip_path(list<geometry_msgs::Quaternion>& _path);
@@ -32,13 +42,13 @@ namespace pybot
     public:
         Graph() {}
         ~Graph() {}
-        void add_node(const T& _added, list<geometry_msgs::Quaternion>& _path);
+        void add_node(const T& _added, double _w);
         double cost_to_target(const T& _curr, const T& _target);
         list<T> path_to_target(const T& _curr, const T& _target);
         void clear();
     private:
         vector< vector<T> > nodes;
-        vector< vector<double> > weights;
+        vector< vector<double> > weights; // weights[i][j] maps the cost from nodes[i][j-1] to nodes[i][j]
     };
 }
 #endif

@@ -1,4 +1,5 @@
 #include "RouteNodeGraph.h"
+// 2D-vector version
 list<geometry_msgs::Quaternion> flip_path(list<geometry_msgs::Quaternion>& _path)
 {
     auto flipped = _path;
@@ -10,52 +11,70 @@ list<geometry_msgs::Quaternion> flip_path(list<geometry_msgs::Quaternion>& _path
     }
     return flipped;
 }
-// template specialization on wifi::RouteNode
+// template specialization on tircgo_msgs::RouteNode
 template<>
-void Graph<wifi::RouteNode>::add_node(const wifi::RouteNode& _added, list<geometry_msgs::Quaternion>& _path)
+void Graph<RouteNode>::add_node(const RouteNode& _added, double _w)
 {
+    // receive route >= 0 case
     if(_added.route >= 0){
+        // put routes in until size match, if naming not consecutive, there will be some empty routes
         while(this->nodes.size() <= _added.route){
-            this->nodes.push_back(vector<wifi::RouteNode>());
+            this->nodes.push_back(vector<RouteNode>());
             this->weights.push_back(vector<double>());
         }
-        this->nodes[_added.route].push_back(_added);
-        this->weights[_added.route].push_back(_edge.w);
-        ROS_INFO("R:%d, N:%d, W:%.1f @ (%.1f, %.1f) added", _added.route, _added.node, _edge.w, _added.pos.x, _added.pos.y);
+        // node naming must be consecutive else reject.
+        if(this->nodes[_added.route].size() + 1 != _added.node){
+            ROS_ERROR("R:%d, N:%d, W:%.1f @ (%.1f, %.1f) node addition rejected, since naming not consecutive",
+                _added.route, _added.node, _w, _added.pos.x, _added.pos.y);
+        }
+        else{
+            this->nodes[_added.route].push_back(_added);
+            this->weights[_added.route].push_back(_w);
+            ROS_INFO("R:%d, N:%d, W:%.1f @ (%.1f, %.1f) node added",
+                _added.route, _added.node, _w, _added.pos.x, _added.pos.y);
+        }
     }
     else{
-        ROS_ERROR("Route <0 Error");
+        ROS_ERROR("Route <0 Error, node addition rejected");
     }
 }
+/* assume every route share [0] */
 template<>
-double Graph<wifi::RouteNode>::cost_to_target(const wifi::RouteNode& _curr, const wifi::RouteNode& _target)
+double Graph<RouteNode>::cost_to_target(const RouteNode& _curr, const RouteNode& _target)
 {
     double ret = 0;
-    // assume _curr -> origin -> _target
     for(int i = _curr.node; i > 0; i--){
         ret += this->weights[_curr.route][i];
     }
-    for(int i = 0; i <= _target.node; i++){
+    for(int i = 1; i <= _target.node; i++){
         ret += this->weights[_target.route][i];
     }
     return ret;
 }
+/* assume _curr -> [any][0] -> _target */
 template<>
-list<wifi::RouteNode> Graph<wifi::RouteNode>::path_to_target(const wifi::RouteNode& _curr, const wifi::RouteNode& _target)
+list<RouteNode> Graph<RouteNode>::path_to_target(const RouteNode& _curr, const RouteNode& _target)
 {
-    list<wifi::RouteNode> ret;
-    // assume _curr -> origin -> _target
-    for(int i = _curr.node; i > 0; i--){
-        ret.push_back(this->nodes[_curr.route][i]);
+    list<RouteNode> ret;
+    if(_curr.route != _target.route){
+        for(int i = _curr.node; i > 0; i--){
+            ret.push_back(this->nodes[_curr.route][i]);
+        }
+        for(int i = 0; i <= _target.node; i++){
+            ret.push_back(this->nodes[_target.route][i]);
+        }
     }
-    for(int i = 0; i <= _target.node; i++){
-        ret.push_back(this->nodes[_target.route][i]);
+    else{
+        for(int i = _curr.node; i != _target.node; i = (_target.node > _curr.node) ? i + 1 : i - 1){
+            ret.push_back(this->nodes[_curr.route][i]);
+        }
     }
     return ret;
 }
 template<>
-void Graph<wifi::RouteNode>::clear()
+void Graph<RouteNode>::clear()
 {
     this->nodes.clear();
     this->weights.clear();
+    ROS_INFO("graph cleared");
 }
