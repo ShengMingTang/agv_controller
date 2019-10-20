@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(agv_controller)
+project(tircgo_controller)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++11)
@@ -208,19 +208,19 @@ include_directories(
 
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
-add_executable(agv_controller_test 
+add_executable(tircgo_controller_node 
   src/test.cpp
   src/Controller.cpp
   src/Joystick.cpp
   src/UART.cpp
   src/PoseTracer.cpp
 )
-target_compile_definitions(agv_controller_test PUBLIC 
+target_compile_definitions(tircgo_controller_node PUBLIC 
 AGV_LOOP_FREQ=20 
 AGV_CONTROLLER_TEST=0
 AGV_CONTROLLER_VERBOSE=1 
 AGV_CONTROLLER_UART_DOMIN=1
 AGV_CONTROLLER_DRIVE_TIMEOUT=0.5
 )
-target_link_libraries(agv_controller_test ${catkin_LIBRARIES})
-add_dependencies(agv_controller_test agv_controller_gencpp ${catkin_EXPORTED_TARGETS})
+target_link_libraries(tircgo_controller_node ${catkin_LIBRARIES})
+add_dependencies(tircgo_controller_node tircgo_controller_gencpp ${catkin_EXPORTED_TARGETS})

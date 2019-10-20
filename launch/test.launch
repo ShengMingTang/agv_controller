@@ -2,6 +2,6 @@
 
     <!-- joy node -->
     <node pkg="joy" type="joy_node" name="joy_nodename"/>
-
-    <!-- <node pkg="agv_controller" type="agv_controller_test_node" name="agv_test"/> -->
+    <node pkg="tircgo_uart" type = "tircgo_uart_encoder_decoder_node" name = "tircgo_encoder_decoder_nodename"/>
+    <node pkg="tircgo_controller" type="tircgo_controller_node" name="tircgo_controller_nodename"/>
 </launch>
