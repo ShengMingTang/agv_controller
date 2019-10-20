@@ -31,7 +31,7 @@ namespace pybot
         ros::Time starttime;
         
         // piecewise integration
-        int16_t v, w;
+        int16_t v = 0, w = 0;
         list<geometry_msgs::Quaternion> path; // consisting of op vectors
     };
     double roundPi(double _w);

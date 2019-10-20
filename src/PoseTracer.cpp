@@ -3,6 +3,8 @@
 PoseTracer::PoseTracer():
 starttime{ros::Time::now()}
 {
+    this->coor.x = this->coor.y = this->coor.z = this->coor.w = 0;
+    this->vel.x = this->vel.y = this->vel.z = this->vel.w = 0;
     ROS_INFO("PoseTracer constructed");
 }
 PoseTracer::~PoseTracer()
