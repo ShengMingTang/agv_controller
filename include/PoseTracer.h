@@ -4,7 +4,7 @@
 #include <geometry_msgs/Quaternion.h>
 #include <cmath>
 #include <list>
-#include "pybot.h"
+#include "Control_proto.h"
 #define PI 3.14159
 
 using namespace std;

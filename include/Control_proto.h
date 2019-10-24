@@ -2,7 +2,11 @@
 #define PYBOT_H
 // #include <set>
 using namespace std;
-
+#define CLASS_HEADER_FILL(header)\
+{\
+    header.stamp = ros::Time()::now();\
+    header.frame_id = this->frame_id;\
+}
 namespace  pybot
 {
     const int MSG_QUE_SIZE = 100;
@@ -99,6 +103,8 @@ namespace  pybot
     /* Wifi */
     const char ROBOT_WIFI_TOPIC[] = "wifi_topic"; // implement
     const char ROBOT_WIFI_SEND_SRV[] = "robot_wifi_send";
+    const char ROBOT_WIFI_NODEOCP_OUTER[] = "robot_wifi_nodeocp_outer"; // robot ask other robots
+    const char ROBOT_WIFI_NODEOCP_INNER[] = "robot_wifi_nodeocp_inner"; // robot answer other robots
     // wifi purpose
     const string
         WIFI_PUR_WS = "W",

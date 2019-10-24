@@ -2,9 +2,10 @@
 #define WIFI_H
 #include <ros/ros.h>
 #include <queue>
-#include "pybot.h"
+#include "Control_proto.h"
 #include "tircgo_msgs/WifiIO.h"
 #include "tircgo_msgs/WifiSend.h"
+#include "tircgo_msgs/WifiNodeOcp.h"
 using namespace std;
 using namespace pybot;
 using namespace tircgo_msgs;
@@ -27,6 +28,8 @@ namespace pybot
         const string frame_id;
         queue<WifiIO::ConstPtr> que;
         ros::ServiceClient send_clt; //send wifi
+        ros::ServiceClient nodeocp_clt;
+        // ros::ServiceServer nodeocp_srv;
         ros::Subscriber recv_sub; // receiver
     };
 }

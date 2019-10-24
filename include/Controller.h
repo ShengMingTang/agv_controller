@@ -10,7 +10,7 @@
 #include <queue>
 #include <cmath>
 #include <list>
-#include "pybot.h"
+#include "Control_proto.h"
 #include "Joystick.h"
 #include "UART.h"
 #include "PoseTracer.h"
@@ -19,7 +19,7 @@
 
 #include "tircgo_uart/RobotStatus.h" // topic header for subscribing to the robot status
 #include "tircgo_uart/RobotInvoke.h"
-
+#include "tircgo_msgs/WifiNodeOcp.h"
 
 #if AGV_CONTROLLER_TEST
     static int16_t route_ct, node_ct;
@@ -51,7 +51,7 @@ namespace pybot
         /* Drive related */
         Opcode decode_opcode(sensor_msgs::Joy::ConstPtr& _ptr);
         pair<int16_t, int16_t> decode_drive(sensor_msgs::Joy::ConstPtr& _ptr); //
-        void drive(); // stop @ here
+        void drive();
         
         /* Sys related */
         void clear(); // print only
@@ -69,16 +69,20 @@ namespace pybot
         UART base_driver;
         ros::Subscriber tracking_status_sub; // subscribe to status
         PoseTracer pose_tracer; // driving accumulator
-        // bool drive_timeout = false; // false mean need to invoke again
-        /* Joystick */
+
+        /* Joystick related */
         Joystick joystick;
         
-        // stop @ here
+        /* wifi related */
         Wifi wifi;
-        Graph<tircgo_msgs::RouteNode> graph;
+        ros::ServiceServer nodeocp_srv;
+        bool wifi_nodeocp_serve(WifiNodeOcp::Request &req, WifiNodeOcp::Response &res);
+        // ask for node_ocp
+        // service to take a job
+        // provide any info needed by Wifi communication
 
-        /* not necessary */
-        ros::Publisher monitor;
+        /* graph */
+        Graph<tircgo_msgs::RouteNode> graph;
         
         /* AGV-wise runtime parameter */
         Mode mode = Mode::MODE_IDLE;
@@ -93,13 +97,15 @@ namespace pybot
         int16_t training_route = 0, training_node = 0;
         // working related
         RouteNode target_rn;
-        RouteNode ocp_rn;
+        RouteNode node_ocp;
         RouteNode rn_none;
         list<RouteNode> work_list;
         // below will be tracked if AGV_CONTROLLER_UART_DOMIN is On
         Tracking_status tracking_status = Tracking_status::TRACKING_STATUS_NONE;
         vector<int16_t> lidar_levels;
 
+        /* not necessary */
+        ros::Publisher monitor;
     };
 }
 #endif

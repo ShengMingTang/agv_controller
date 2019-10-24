@@ -4,7 +4,7 @@
 #include <vector>
 #include <list>
 #include <geometry_msgs/Quaternion.h>
-#include "pybot.h"
+#include "Control_proto.h"
 #include "tircgo_msgs/RouteNode.h"
 using namespace std;
 using namespace pybot;
