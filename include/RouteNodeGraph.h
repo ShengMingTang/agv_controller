@@ -9,19 +9,11 @@
 using namespace std;
 using namespace pybot;
 using namespace tircgo_msgs;
-// Layout
-// [0, 0] - [0, 1] - [0, 2] - ...
-//   ||
-// [1, 0] - [1, 1] - [1, 2] - ...
-//   ||
-// [2, 0] - ...
-//   ||
-//   .
-//   .
-//   .
+
 namespace pybot
 {
     list<geometry_msgs::Quaternion> flip_path(list<geometry_msgs::Quaternion>& _path);
+    double calc_dist(list<geometry_msgs::Quaternion>& _path);
     template<typename T>
     struct Edge
     {

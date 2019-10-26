@@ -11,6 +11,13 @@ list<geometry_msgs::Quaternion> flip_path(list<geometry_msgs::Quaternion>& _path
     }
     return flipped;
 }
+double calc_dist(list<geometry_msgs::Quaternion>& _path)
+{
+    double ret = 0;
+    for(auto it : _path)
+        ret += sqrt(it.x * it.x + it.y * it.y);
+    return ret;
+}
 // template specialization on tircgo_msgs::RouteNode
 template<>
 void Graph<RouteNode>::add_node(const RouteNode& _added, double _w)
@@ -57,7 +64,7 @@ list<RouteNode> Graph<RouteNode>::path_to_target(const RouteNode& _curr, const R
 {
     list<RouteNode> ret;
     if(_curr.route != _target.route){
-        for(int i = _curr.node; i > 0; i--){
+        for(int i = _curr.node; i >= 0; i--){
             ret.push_back(this->nodes[_curr.route][i]);
         }
         for(int i = 0; i <= _target.node; i++){

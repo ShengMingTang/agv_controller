@@ -1,10 +1,14 @@
 #include "Wifi.h"
 
-Wifi::Wifi(const string& _parent_frame_id):
+Wifi::Wifi(const string& _parent_frame_id, Controller *const _parent):
 frame_id{_parent_frame_id + "/wifi"}
-,send_clt{this->n.serviceClient<tircgo_msgs::WifiSend>(ROBOT_WIFI_SEND_SRV)}
+,parent{_parent}
+,nodeocp_srv{this->n.advertiseService(ROBOT_WIFI_NODEOCP_INNER, &Wifi::nodeocp_serve, this)}
 ,nodeocp_clt{this->n.serviceClient<tircgo_msgs::WifiNodeOcp>(ROBOT_WIFI_NODEOCP_OUTER)}
-,recv_sub{this->n.subscribe(ROBOT_WIFI_TOPIC, MSG_QUE_SIZE, &Wifi::recv_callback, this)}
+,nodecost_srv{this->n.advertiseService(ROBOT_WIFI_NODECOST_INNER, &Wifi::nodecost_serve, this)}
+,nodecost_clt{this->n.serviceClient<tircgo_msgs::WifiNodeOcp>(ROBOT_WIFI_NODECOST_OUTER)}
+// ,send_clt{this->n.serviceClient<tircgo_msgs::WifiSend>(ROBOT_WIFI_SEND_SRV)}
+// ,recv_sub{this->n.subscribe(ROBOT_WIFI_TOPIC, MSG_QUE_SIZE, &Wifi::recv_callback, this)}
 {
     ROS_INFO("Wifi constructed");
 }
@@ -18,16 +22,30 @@ void Wifi::send(const string& _hint)
 {
 
 }
-/* true then can enter, else must wait */
-bool Wifi::node_ocp(const RouteNode& _nd)
+bool Wifi::nodeocp_serve(WifiNodeOcp::Request &_req, WifiNodeOcp::Response &_res)
 {
-    // request a service to Ng
+    Node nd = parent->get_nodecop();
+    _res.is_ocp = (_req.q_rn.route == nd.route && _req.q_rn.node == nd.node);
+    _res.error_code = WIFI_ERR_NONE;
+    return true;
+}
+bool Wifi::nodecost_serve(WifiNodeCost::Request &_req, WifiNodeCost::Response &_res)
+{
+    _res.cost.target = _req.target;
+    _res.cost = parent->get_cost_to_target(_req.target);
+    _res.error_code = WIFI_ERR_NONE;
+    return true;
+}
+/* true then can enter, else must wait */
+bool Wifi::is_node_ocp(const RouteNode& _nd)
+{
+    // request a service from Ng
     tircgo_msgs::WifiNodeOcp srv;
     if(!this->nodeocp_clt.call(srv)){
         ROS_ERROR("<NodeOcp Srv-Err>");
         return false;
     }
-    return srv.response.is_ocp;
+    return srv.response.error_code == WIFI_ERR_NONE && srv.response.is_ocp;
 }
 bool Wifi::is_msg_valid(WifiIO::ConstPtr _msg)
 {

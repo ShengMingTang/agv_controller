@@ -14,13 +14,15 @@
 #include "Joystick.h"
 #include "UART.h"
 #include "PoseTracer.h"
-#include "Wifi.h"
+// #include "Wifi.h"
 #include "RouteNodeGraph.h"
 
 #include "tircgo_uart/RobotStatus.h" // topic header for subscribing to the robot status
 #include "tircgo_uart/RobotInvoke.h"
 #include "tircgo_msgs/WifiNodeOcp.h"
-
+#include "tircgo_msgs/WifiNodeCost.h"
+#include "tircgo_msgs/WifiTaskConfirm.h"
+#include "tircgo_msgs/Ask_Data.h"
 #if AGV_CONTROLLER_TEST
     static int16_t route_ct, node_ct;
 #endif
@@ -30,6 +32,9 @@ using namespace std;
 using namespace pybot;
 using namespace tircgo_uart;
 using namespace tircgo_msgs;
+
+using Node = tircgo_msgs::RouteNode; // for generality
+
 namespace pybot
 {
     class Controller
@@ -40,6 +45,8 @@ namespace pybot
         void setup(); // stop @ here
         void loopOnce(); // maybe function queue drivable
         bool ok() const{return this->is_ok;}
+        // Node get_nodeocp() const{return this->nd_ocp;}
+        // float get_cost_to_target (const Node &_target)const;
     private:
         /* Mode related */
         void isr(const Tracking_status& _cond); // interrupt service routine
@@ -74,15 +81,23 @@ namespace pybot
         Joystick joystick;
         
         /* wifi related */
-        Wifi wifi;
+        // Wifi wifi;
+        bool is_target_ocp(const Node& _target);
         ros::ServiceServer nodeocp_srv;
-        bool wifi_nodeocp_serve(WifiNodeOcp::Request &req, WifiNodeOcp::Response &res);
-        // ask for node_ocp
-        // service to take a job
-        // provide any info needed by Wifi communication
+        ros::ServiceClient nodeocp_clt;
+        bool nodeocp_serve(WifiNodeOcp::Request &_req, WifiNodeOcp::Response &_res);
 
+        ros::ServiceServer nodecost_srv;
+        ros::ServiceClient nodecost_clt;
+        bool nodecost_serve(WifiNodeCost::Request &_req, WifiNodeCost::Response &_res);
+
+        ros::ServiceServer task_confirm_srv;
+        bool task_confirm_serve(WifiTaskConfirm::Request &_req, WifiTaskConfirm::Response &_res);
+
+        ros::ServiceServer askdata_srv;
+        bool askdata_serve(Ask_Data::Request &_req, Ask_Data::Response &_res);
         /* graph */
-        Graph<tircgo_msgs::RouteNode> graph;
+        Graph<Node> graph;
         
         /* AGV-wise runtime parameter */
         Mode mode = Mode::MODE_IDLE;
@@ -95,11 +110,12 @@ namespace pybot
         Opcode op = Opcode::OPCODE_NONE;
         // training related
         int16_t training_route = 0, training_node = 0;
+        Node nd_training;
         // working related
-        RouteNode target_rn;
-        RouteNode node_ocp;
-        RouteNode rn_none;
-        list<RouteNode> work_list;
+        Node nd_target;
+        Node nd_ocp;
+        // Node with .route == .node == -1 is considered invalid
+        list<Node> work_list;
         // below will be tracked if AGV_CONTROLLER_UART_DOMIN is On
         Tracking_status tracking_status = Tracking_status::TRACKING_STATUS_NONE;
         vector<int16_t> lidar_levels;

@@ -105,6 +105,9 @@ namespace  pybot
     const char ROBOT_WIFI_SEND_SRV[] = "robot_wifi_send";
     const char ROBOT_WIFI_NODEOCP_OUTER[] = "robot_wifi_nodeocp_outer"; // robot ask other robots
     const char ROBOT_WIFI_NODEOCP_INNER[] = "robot_wifi_nodeocp_inner"; // robot answer other robots
+    const char ROBOT_WIFI_NODECOST_OUTER[] = "robot_wifi_nodecost_outer"; // robot ask other robots
+    const char ROBOT_WIFI_NODECOST_INNER[] = "robot_wifi_nodecost_inner"; // robot answer other robots
+    const char ROBOT_WIFI_TASK_CONFIRM_INNER[] = "robot_wifi_taskconfirm_inner";
     // wifi purpose
     const string
         WIFI_PUR_WS = "W",
@@ -124,5 +127,6 @@ namespace  pybot
     const int WIFI_BUFF_SIZE = 50;
     /* Debug*/
     const char MONITOR_TOPIC[] = "controller/monitor_topic";
+    const char ROBOT_ASKDATA_TOPIC[] = "cost_srv";
 }
 #endif

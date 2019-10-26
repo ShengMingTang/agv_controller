@@ -2,13 +2,22 @@
 Controller::Controller(const string& _id):
 base_driver{UART(_id)}
 ,joystick{Joystick(_id)}
-,wifi{Wifi{_id}}
+// ,wifi{Wifi{_id}}
 ,tracking_status_sub{this->n.subscribe(ROBOTSTATUS_TOPIC, MSG_QUE_SIZE, &Controller::status_tracking, this)}
 ,monitor{this->n.advertise<std_msgs::String>(MONITOR_TOPIC, MSG_QUE_SIZE)}
 ,lidar_levels {vector<int16_t>(4, LIDAR_LEVEL_L)}
-,nodeocp_srv{this->n.advertiseService(ROBOT_WIFI_NODEOCP_INNER, &Controller::wifi_nodeocp_serve, this)}
+
+,nodeocp_srv{this->n.advertiseService(ROBOT_WIFI_NODEOCP_INNER, &Controller::nodeocp_serve, this)}
+,nodeocp_clt{this->n.serviceClient<tircgo_msgs::WifiNodeOcp>(ROBOT_WIFI_NODEOCP_OUTER)}
+,nodecost_srv{this->n.advertiseService(ROBOT_WIFI_NODECOST_INNER, &Controller::nodecost_serve, this)}
+,nodecost_clt{this->n.serviceClient<tircgo_msgs::WifiNodeOcp>(ROBOT_WIFI_NODECOST_OUTER)}
+
+,task_confirm_srv{this->n.advertiseService(ROBOT_WIFI_TASK_CONFIRM_INNER, &Controller::task_confirm_serve, this)}
+
+,askdata_srv(this->n.advertiseService(ROBOT_ASKDATA_TOPIC, &Controller::askdata_serve, this))
+
 {
-    this->rn_none.route = this->rn_none.node = -1;
+    this->nd_ocp.route = this->nd_ocp.node = -1;
     ROS_INFO("Controller constructed");
 }
 Controller::~Controller()
@@ -19,11 +28,8 @@ void Controller::setup()
 {
     ROS_INFO("Controller Setup:");
     ROS_INFO("Loop at frequency %d", AGV_LOOP_FREQ);
-    ROS_INFO("Verbose : %d", AGV_CONTROLLER_VERBOSE);
-    ROS_INFO("UART dominates statusc : %d", AGV_CONTROLLER_UART_DOMIN);
     // can wait for UART in the future
 }
-/* interrupt service routine*/
 void Controller::isr(const Tracking_status& _cond)
 {
     // implement
@@ -52,18 +58,18 @@ Opcode Controller::decode_opcode(sensor_msgs::Joy::ConstPtr& _ptr)
                     ret = Opcode::OPCODE_WORK_BEGIN;
                 #if AGV_CONTROLLER_WORK_MAN
                     else if(buttons[JOYBUTTON_RT]){
-                        this->target_rn.route++;
+                        this->nd_target.route++;
                     }
                     else if(buttons[JOYBUTTON_LT]){
-                        if(this->target_rn.route - 1 >= 0)
-                            this->target_rn.route--;
+                        if(this->nd_target.route - 1 >= 0)
+                            this->nd_target.route--;
                     }
                     else if(buttons[JOYBUTTON_RB]){
-                        this->target_rn.node++;
+                        this->nd_target.node++;
                     }
                     else if(buttons[JOYBUTTON_LB]){
-                        if(this->target_rn.node - 1 >= 0)
-                            this->target_rn.node--;
+                        if(this->nd_target.node - 1 >= 0)
+                            this->nd_target.node--;
                     }
                 #endif
                 break;
@@ -123,7 +129,13 @@ void Controller::drive()
                // don't send redundant 0 vel_cmd
         }
         else{
-            auto srv = this->base_driver.invoke((char)Opcode::OPCODE_DRIVE, {vel_cmd.first, vel_cmd.second});
+            #if AGV_CONTROLLER_SAFE
+                if(this->check_safety()){
+                    auto srv = this->base_driver.invoke((char)Opcode::OPCODE_DRIVE, {vel_cmd.first, vel_cmd.second});    
+                }
+            #else
+                auto srv = this->base_driver.invoke((char)Opcode::OPCODE_DRIVE, {vel_cmd.first, vel_cmd.second});
+            #endif
             #if AGV_CONTROLLER_TEST
                 this->pose_tracer.set_vw(vel_cmd.first, vel_cmd.second);
             #else
@@ -142,11 +154,13 @@ void Controller::clear()
 {
     this->is_origin_set = false;
     this->is_calibed = false;
-    this->is_calib_begin = false;
     this->is_trained = false;
+    this->is_calib_begin = false;
     this->is_ok = true;
+    this->op_ptr = nullptr;
+    this->op = Opcode::OPCODE_NONE;
     this->pose_tracer.clear();
-    // this->graph.clear();
+    this->graph.clear();
     #if AGV_CONTROLLER_TEST
         route_ct = node_ct = 0;
     #endif
@@ -160,22 +174,13 @@ void Controller::log()
 /* safety issue */
 bool Controller::check_safety()
 {
-    for(int i = 0; i < this->lidar_levels.size(); i++){
-        if(this->lidar_levels[i] <= LIDAR_LEVEL_H){
-            ROS_WARN("Dir %d near an obstacle", i);
-            return false;
-        }
-    }
-    return true;
+    return this->lidar_levels[LIDAR_DIR_FRONT] <= LIDAR_LEVEL_H;
 }
 /* subsriber to track status */
 void Controller::status_tracking(const RobotStatus::ConstPtr& _msg)
 {
     if(_msg->is_activated){
-        #if AGV_CONTROLLER_VERBOSE
-            ROS_INFO("RobotStatus Msg receiced");
-        #endif
-        #if AGV_CONTROLLER_UART_DOMIN
+        #if !AGV_CONTROLLER_TEST
             this->mode = (Mode)_msg->now_mode;
             if(_msg->jreply.is_activated){
                 this->tracking_status = (Tracking_status)_msg->jreply.reply;
@@ -189,8 +194,6 @@ void Controller::status_tracking(const RobotStatus::ConstPtr& _msg)
             else{
                 ROS_WARN("Lreply invalid");
             }
-        #else
-            ROS_WARN("Mode, Lidar aren't under UART's control")
         #endif
     }
     else{
@@ -214,9 +217,19 @@ void Controller::monitor_display()
                 coor.x, coor.y, coor.w,
                 this->pose_tracer.get_v(), this->pose_tracer.get_w(),
                 this->lidar_levels[0], this->lidar_levels[1], this->lidar_levels[2], this->lidar_levels[2],
-                this->target_rn.route, this->target_rn.node
+                this->nd_target.route, this->nd_target.node
                 );
     std_msgs::String msg;
     msg.data = string(buff);
     this->monitor.publish(msg);
+}
+bool Controller::is_target_ocp(const Node& _target)
+{
+    // request a service from Ng
+    tircgo_msgs::WifiNodeOcp srv;
+    if(!this->nodeocp_clt.call(srv)){
+        ROS_ERROR("<NodeOcp Srv-Err>");
+        return false;
+    }
+    return srv.response.error_code == WIFI_ERR_NONE && srv.response.is_ocp;
 }
