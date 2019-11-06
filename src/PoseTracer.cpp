@@ -4,7 +4,7 @@ PoseTracer::PoseTracer():
 starttime{ros::Time::now()}
 {
     this->coor.x = this->coor.y = this->coor.z = this->coor.w = 0;
-    this->vel.x = this->vel.y = this->vel.z = this->vel.w = 0;
+    this->vel = {0, 0};
     ROS_INFO("PoseTracer constructed");
 }
 PoseTracer::~PoseTracer()
@@ -19,61 +19,55 @@ void PoseTracer::clear()
 }
 void PoseTracer::reset_path()
 {
-    int v = this->v, w = this->w;
+    vector<int16_t> tmp = this->vel;
+    vector<int16_t> zero = {0, 0};
     // reset
-    this->set_vw(0, 0);
+    this->set_vw(zero);
     this->path.clear();
     // keep vel
-    this->set_vw(v, w);
+    this->set_vw(tmp);
 }
-void PoseTracer::set_vw(int _v, int _w)
+void PoseTracer::set_vw(const vector<int16_t> &_vel) //const vector<int16_t> &_vel
 {
-    // if(_v != this->v || _w != this->w){ // different op
-    if(this->v || this->w){ // won't record redundant operation
-        double t = (ros::Time::now() - this->starttime).toSec();
-        geometry_msgs::Quaternion motion;
-        motion.x = this->vel.x * t;
-        motion.y = this->vel.y * t;
-        motion.w = this->vel.w * t;
-        motion.w = roundPi(motion.w);
-        this->path.push_back(motion);
-        // update coor
-        this->coor.x += motion.x;
-        this->coor.y += motion.y;
-        this->coor.w += motion.w;
-        this->coor.w = roundPi(this->coor.w);
-        this->vel = {};
+    if(_vel[0] != this->vel[0] || _vel[1] != this->vel[1]){ // different op
+        // record a piece of walkunit
+        ros::Time now = ros::Time::now();
+        double t = (now - this->starttime).toSec();
+        WalkUnitType unit;
+
+        if(this->vel[0] || this->vel[1]){ // non-redundant move
+            unit.vel = this->vel;
+            unit.dur = now - this->starttime;
+            this->path.push_back(unit);
+            // update coor
+            this->coor.x += this->vel[0] * cos(this->coor.w) * t;
+            this->coor.y += this->vel[0] * sin(this->coor.w) * t;
+            this->coor.w += (this->vel[1] * ANGULAR_FACTOR) * t;
+            this->coor.w = roundPi(this->coor.w);
+        }
+        this->vel = _vel;
+        this->starttime = ros::Time::now();
     }
-    // coor purpose
-    this->vel.x = _v * cos(this->coor.w);
-    this->vel.y = _v * sin(this->coor.w);
-    this->vel.w = _w;
-    // main part
-    this->v = _v;
-    this->w = _w;
-    this->starttime = ros::Time::now();
-    // }
 }
 geometry_msgs::Quaternion PoseTracer::get_coor()const
 {
     geometry_msgs::Quaternion pos;
     double t = (ros::Time::now() - this->starttime).toSec();
-    pos.x = this->coor.x + this->vel.x * t;
-    pos.y = this->coor.y + this->vel.y * t;
-    pos.w = this->coor.w + this->vel.w * t;
-    pos.w = roundPi(pos.w);
+    pos.x = this->coor.x + this->vel[0] * cos(this->coor.w) * t;
+    pos.y = this->coor.y + this->vel[0] * sin(this->coor.w) * t;
+    pos.w = this->coor.w + (this->vel[1] * 0.1) * t;
     return pos;
 }
 double PoseTracer::get_dist()
 {
     double dist = 0, t = (ros::Time::now() - this->starttime).toSec();
     for(auto it : this->path){
-        dist += sqrt(it.x * it.x + it.y * it.y);
+        dist += abs(it.vel[0]) * it.dur.toSec();
     }
-    dist += abs(this->v * t);
+    dist += abs(this->vel[0] * t);
     return dist;
 }
-double pybot::roundPi(double _w)
+double tircgo::roundPi(double _w)
 {
     while(_w < 0)
         _w += 2 * PI;
