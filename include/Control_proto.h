@@ -7,7 +7,9 @@ using namespace std;
     header.stamp = ros::Time()::now();\
     header.frame_id = this->frame_id;\
 }
-namespace  pybot
+
+#define ANGULAR_FACTOR 0.1
+namespace tircgo
 {
     const int MSG_QUE_SIZE = 100;
     const float JOY_CD = 0.1;
