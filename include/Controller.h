@@ -1,41 +1,69 @@
 #ifndef CONTROLLER_H
 #define CONTROLLER_H
 #include <ros/ros.h>
-#include <geometry_msgs/TwistStamped.h>
-#include <geometry_msgs/Pose.h>
+#include <geometry_msgs/Quaternion.h>
 #include <std_msgs/String.h>
+
 #include <vector>
 #include <sstream>
 #include <string>
 #include <queue>
 #include <cmath>
 #include <list>
+#include <map>
+
 #include "Control_proto.h"
 #include "Joystick.h"
 #include "UART.h"
 #include "PoseTracer.h"
-// #include "Wifi.h"
-#include "RouteNodeGraph.h"
+#include "Graph.h"
+#include "tircgo_common.h"
 
 #include "tircgo_uart/RobotStatus.h" // topic header for subscribing to the robot status
 #include "tircgo_uart/RobotInvoke.h"
+
 #include "tircgo_msgs/WifiNodeOcp.h"
 #include "tircgo_msgs/WifiNodeCost.h"
 #include "tircgo_msgs/WifiTaskConfirm.h"
 #include "tircgo_msgs/Ask_Data.h"
+#include "tircgo_msgs/CtrlData.h"
+#include "tircgo_msgs/RouteNode.h"
+
+
 #if AGV_CONTROLLER_TEST
     static int16_t route_ct, node_ct;
 #endif
 
+#define RUNTIME_VARS_SET 1
+#define RUNTIME_VARS_RESET 0
+
+#define STAGE_ORIGIN_SET (1 << 0)
+#define STAGE_CALIB_BEGIN (1 << 1)
+#define STAGE_CALIBED (1 << 1)
+#define STAGE_TRAINED (1 << 2)
+#define STAGE_OK (1 << 31)
+
+#define TRAIN_ROUTE_MAX 5
+#define TRAIN_NODE_MIN 2
+#define TRAIN_NODE_MAX 10000
+
+#define ISR_OBSTACLE 1
+
+/* if set this to zero, simply the same as no wrapper*/
+#define CLOSE_ENOUGH 1
 
 using namespace std;
-using namespace pybot;
+using namespace tircgo;
 using namespace tircgo_uart;
 using namespace tircgo_msgs;
 
-using Node = tircgo_msgs::RouteNode; // for generality
+using PrimitiveType = tircgo_msgs::RouteNode;
+// using WalkUnitType = geometry_msgs::Quaternion;
+using WalkUnitType = WalkUnit;
+using VertexType = Vertex<PrimitiveType>;
+using EdgeType = Edge<VertexType, WalkUnitType>;
 
-namespace pybot
+namespace tircgo
 {
     class Controller
     {
@@ -44,29 +72,34 @@ namespace pybot
         ~Controller();
         void setup(); // stop @ here
         void loopOnce(); // maybe function queue drivable
-        bool ok() const{return this->is_ok;}
-        // Node get_nodeocp() const{return this->nd_ocp;}
-        // float get_cost_to_target (const Node &_target)const;
+        bool ok() const{return this->stage_bm & STAGE_OK;}
+        void monitor_display()const;
     private:
         /* Mode related */
-        void isr(const Tracking_status& _cond); // interrupt service routine
+        void isr(const int _inter); // interrupt service routine
         void idle();
         void homing();
         void training();
-        void working(); // print only
+        void working();
+        /* API */
+        // custom working list
+        /* return true if there is any kerenl instrcution*/
+        bool is_target_ocp(const VertexType *vptr);
+        bool priviledged_instr();
+        bool poweroff();
+        PrimitiveType set_node();
+        void drive(vector<int16_t> _vel);
+        void runtime_vars_mgr(bool _flag);
 
-        /* Drive related */
-        Opcode decode_opcode(sensor_msgs::Joy::ConstPtr& _ptr);
-        pair<int16_t, int16_t> decode_drive(sensor_msgs::Joy::ConstPtr& _ptr); //
-        void drive();
+        /* API suport */
+        Opcode decode_opcode();
+        vector<int16_t> decode_drive();
         
         /* Sys related */
         void clear(); // print only
         void log(); // print only
         bool check_safety(); // tell near an obstable only
-        void status_tracking(const RobotStatus::ConstPtr& _msg); // UART pub
         sensor_msgs::Joy::ConstPtr get_joy_signal(); // Joy pub
-        void monitor_display();
         
         /* build time */
         ros::NodeHandle n;
@@ -74,15 +107,14 @@ namespace pybot
         
         /* UART related */
         UART base_driver;
+        void status_tracking(const RobotStatus::ConstPtr& _msg); // UART pub
         ros::Subscriber tracking_status_sub; // subscribe to status
         PoseTracer pose_tracer; // driving accumulator
 
         /* Joystick related */
         Joystick joystick;
-        
+
         /* wifi related */
-        // Wifi wifi;
-        bool is_target_ocp(const Node& _target);
         ros::ServiceServer nodeocp_srv;
         ros::ServiceClient nodeocp_clt;
         bool nodeocp_serve(WifiNodeOcp::Request &_req, WifiNodeOcp::Response &_res);
@@ -96,32 +128,35 @@ namespace pybot
 
         ros::ServiceServer askdata_srv;
         bool askdata_serve(Ask_Data::Request &_req, Ask_Data::Response &_res);
-        /* graph */
-        Graph<Node> graph;
         
-        /* AGV-wise runtime parameter */
-        Mode mode = Mode::MODE_IDLE;
-        bool is_origin_set = false;
-        bool is_calibed = false;
-        bool is_trained = false;
-        bool is_calib_begin = false;
-        bool is_ok = true;
-        sensor_msgs::Joy::ConstPtr op_ptr;
-        Opcode op = Opcode::OPCODE_NONE;
-        // training related
-        int16_t training_route = 0, training_node = 0;
-        Node nd_training;
-        // working related
-        Node nd_target;
-        Node nd_ocp;
-        // Node with .route == .node == -1 is considered invalid
-        list<Node> work_list;
-        // below will be tracked if AGV_CONTROLLER_UART_DOMIN is On
-        Tracking_status tracking_status = Tracking_status::TRACKING_STATUS_NONE;
-        vector<int16_t> lidar_levels;
+        /* Graph related */
+        Graph<VertexType, EdgeType> graph;
+        vector< vector<VertexType*> > rn_img; // [route][node] -> reference in graph
 
-        /* not necessary */
+        /* runtime supoort vars */
+        sensor_msgs::Joy::ConstPtr op_ptr;
+        Mode mode = Mode::MODE_IDLE; // strictly tracked
+        int stage_bm = 0;
+        vector<int16_t> lidar_levels;
         ros::Publisher monitor;
+        vector<int16_t> op_vel;
+        Opcode op = Opcode::OPCODE_NONE;
+        
+        // training and working
+        int16_t training_route = 0, training_node = 0;
+        PrimitiveType nd_training;
+        // working related
+        PrimitiveType nd_target; // for manually set target
+        VertexType *target_vptr;
+        VertexType *ocp_vptr;
+        
+        list<VertexType*> work_list;
+        
+        // strictly tracked
+        Tracking_status tracking_status = Tracking_status::TRACKING_STATUS_NONE;
+
+        
+
     };
 }
 #endif
