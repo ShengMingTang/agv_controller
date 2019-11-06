@@ -10,9 +10,9 @@
 
 #define UART_VERBOSE 1
 using namespace std;
-using namespace pybot;
+using namespace tircgo;
 using namespace tircgo_uart;
-namespace pybot
+namespace tircgo
 {
     class UART
     {

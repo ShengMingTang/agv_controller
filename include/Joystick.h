@@ -9,9 +9,9 @@
 
 #define JOY_BUFF_SIZE 50
 using namespace std;
-using namespace pybot;
+using namespace tircgo;
 
-namespace pybot
+namespace tircgo
 {
     class Joystick
     {
