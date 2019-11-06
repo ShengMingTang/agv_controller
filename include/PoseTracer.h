@@ -6,7 +6,7 @@
 #include <cmath>
 #include <list>
 #include "Control_proto.h"
-#include "Vertex_Edge.h"
+#include "tircgo_common.h"
 #define PI 3.14159
 
 using namespace std;
