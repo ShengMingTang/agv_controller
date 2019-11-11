@@ -67,6 +67,19 @@ double PoseTracer::get_dist()
     dist += abs(this->vel[0] * t);
     return dist;
 }
+/*  return the headway of the last linear motion */
+int16_t PoseTracer::get_headway()const
+{
+    for(auto it = this->path.crbegin(); it != this->path.crend(); it++){
+        if((it->vel)[0]> 0){
+            return SETNODE_HEADWAY_HEAD;
+        }
+        else if((it->vel)[0] < 0){
+            return SETNODE_HEADWAY_TAIL;
+        }
+    }
+    return SETNODE_HEADWAY_HEAD;
+}
 double tircgo::roundPi(double _w)
 {
     while(_w < 0)

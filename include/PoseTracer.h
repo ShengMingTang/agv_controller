@@ -30,6 +30,7 @@ namespace tircgo
         double get_dist();
         list<WalkUnitType> get_path()const {return this->path;}
         ros::Time get_starttime()const {return this->starttime;}
+        int16_t get_headway()const;
     private:
         geometry_msgs::Quaternion coor = {};
         ros::Time starttime;
