@@ -9,6 +9,37 @@ using namespace std;
 }
 
 #define ANGULAR_FACTOR 0.1
+
+#define LIDAR_DIR_FRONT 0
+#define LIDAR_DIR_BACK 1
+#define LIDAR_DIR_LEFT 2
+#define LIDAR_DIR_RIGHT 3
+
+#define LIDAR_LEVEL_H 1
+#define LIDAR_LEVEL_M 2
+#define LIDAR_LEVEL_L 3
+
+#define DEVICE_BEEPER 0
+#define DEVICE_LED_G 1
+#define DEVICE_LED_Y 2
+#define DEVICE_LED_R 3
+
+#define DEVICE_ON 0
+#define DEVICE_OFF 1
+
+#define DEVICE_BEEPER_3L_2S 2
+#define DEVICE_BEEPER_2S 3
+#define DEVICE_BEEPER_L 4
+
+#define DEVICE_LED_SLOW 2
+#define DEVICE_LED_MEDI 3
+#define DEVICE_LED_FAST 4
+
+#define SETNODE_PASS_SLIDE 1
+#define SETNODE_PASS_EXACT 0
+#define SETNODE_HEADWAY_HEAD 1
+#define SETNODE_HEADWAY_TAIL 0
+
 namespace tircgo
 {
     const int MSG_QUE_SIZE = 100;
@@ -22,44 +53,32 @@ namespace tircgo
         TRACKING_STATUS_OBSTACLE = -3,
         TRACKING_STATUS_ARRIVAL = 127,
     };
-    // Lidar_dir
-    const size_t 
-        LIDAR_DIR_FRONT = 0,
-        LIDAR_DIR_BACK = 1,
-        LIDAR_DIR_LEFT = 2,
-        LIDAR_DIR_RIGHT = 3;
-    // Lidar_level
-    const int16_t 
-        LIDAR_LEVEL_H = 1,
-        LIDAR_LEVEL_M = 2,
-        LIDAR_LEVEL_L = 3;
-    enum class Mode: int
-    {
-        MODE_IDLE = 1,
-        MODE_HOMING = 2,
-        MODE_TRAINING = 3,
-        MODE_WORKING = 4,
-    };
     enum class Opcode: char
     {
-        // uart-defined
-        OPCODE_HOMEING = 'A',
-        OPCODE_ORIGIN = 'B',
-        OPCODE_CALIB_BEGIN = 'C',
-        OPCODE_CALIB_FINISH = 'D',
-        OPCODE_TRAIN_BEGIN = 'E',
-        OPCODE_SETNODE = 'F',
-        OPCODE_TRAIN_FINISH = 'G',
-        OPCODE_WORK_BEGIN = 'H',
-        OPCODE_WORK_FINISH = 'I',
-        OPCODE_POWEROFF = 'K',
-        OPCODE_DRIVE = 'M',
         /* self-defined */
         OPCODE_NONE = '0',
         OPCODE_RT_UP = '1',
         OPCODE_RT_DOWN = '2',
         OPCODE_ND_UP = '3',
         OPCODE_ND_DOWN = '4',
+        
+        /* tircgo1107 protocol */
+        // status asking
+        // OPCODE_ALIVE = 'A',
+        // OPCODE_SYS_STATUS = 'B',
+        // OPCODE_WORK_STATUS = 'C',
+        // OPCODE_LIDAR_STATUS = 'D',
+
+        // hardware control
+        OPCODE_SHUTDOWN = 'E',
+        OPCODE_DRIVE = 'F',
+        OPCODE_SIGNAL = 'G', // for LED and beeper
+        OPCODE_CALIB = 'H',
+        OPCODE_TRAIN_BEGIN = 'I',
+        OPCODE_SETNODE = 'J',
+        OPCODE_TRAIN_FINISH = 'K',
+        OPCODE_WORK_BEGIN = 'L',
+        OPCODE_WORK_FINISH = 'M',
     };
     /* motor limits */
     const double MOTOR_LINEAR_LIMIT = 60;

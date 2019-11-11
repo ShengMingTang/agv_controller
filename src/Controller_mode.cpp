@@ -12,31 +12,23 @@ void Controller::loopOnce()
     // loopOnce body (User-Custom space)
     if(!any_privi){
         switch(this->mode){
-            case Mode::MODE_IDLE:
+            case MODE_IDLE:
                 this->idle();
                 break;
-            case Mode::MODE_HOMING:
-                this->homing();
+            case MODE_POS:
+                ROS_INFO("Postitioning, please walk around");
+                this->idle();
                 break;
-            case Mode::MODE_TRAINING:
-                if(this->stage_bm & STAGE_CALIBED)
-                    this->training();
-                else{
-                    ROS_WARN("Not Homed but want to enter Trainng mode");
-                    ROS_WARN("Direct forced switch to Idle mode");
-                    this->mode = Mode::MODE_IDLE;
-                }
+            case MODE_CALIB:
+                this->calibration();
+            case MODE_TRAINING:
+                this->training();
                 break;
-            case Mode::MODE_WORKING:
-                if(this->stage_bm & STAGE_TRAINED)
-                    this->working();
-                else{
-                    ROS_WARN("Not Trained but want to enter Working mode");
-                    this->mode = Mode::MODE_IDLE;
-                }
+            case MODE_WORKING:
+                this->working();
                 break;
             default:
-                ROS_WARN("Undefined mode");
+                ROS_WARN("Undefined mode %d", (int16_t)this->mode);
                 break;
         }
     }
@@ -49,7 +41,7 @@ void Controller::idle()
     RobotInvoke srv;
     switch(this->op){
         case Opcode::OPCODE_NONE:
-            if(this->stage_bm & STAGE_TRAINED){
+            if(this->stage_bm & MODE_TRAINING){
                 // check if there were jobs to do
                 if(!this->work_list.empty()){
                     VertexType *next_vptr = this->work_list.front();
@@ -62,7 +54,7 @@ void Controller::idle()
                     if(!is_ocp){
                         RouteNode next_nd = *(next_vptr->aliases.begin());
                         vector<int16_t> work_args = {next_nd.route, next_nd.node};
-                        srv = this->base_driver.invoke((char)Opcode::OPCODE_WORK_BEGIN, work_args);
+                        srv = this->base_driver.invoke(Opcode::OPCODE_WORK_BEGIN, work_args);
                         if(this->base_driver.is_invoke_valid(srv)){
                             // claim
                             this->ocp_vptr = this->work_list.front();
@@ -75,32 +67,35 @@ void Controller::idle()
                 }
             }
             break;
-        case Opcode::OPCODE_HOMEING:
-            srv = this->base_driver.invoke((char)Opcode::OPCODE_HOMEING, vector<int16_t>());
+        case Opcode::OPCODE_CALIB:
+            srv = this->base_driver.invoke(Opcode::OPCODE_CALIB, vector<int16_t>());
             #if ROBOT_CONTROLLER_TEST
-                this->mode = Mode::MODE_HOMING;
-                ROS_INFO("Start Homing");
+                ROS_INFO("Start Calib (under Test)");
+                this->mode = MODE_CALIB;
+                this->clear();
             #else
                 if(this->base_driver.is_invoke_valid(srv)){
+                    ROS_INFO("Start Calib");
                     this->clear();
-                    ROS_INFO("Start Homing");
                 }
                 else{
-                    ROS_ERROR("<Homing Srv-Err>");
+                    ROS_ERROR("<Calib Srv-Err>");
                 }
             #endif
             break;
         case Opcode::OPCODE_TRAIN_BEGIN:{
             vector<int16_t> train_args = {this->nd_training.route};
             this->nd_training.node = 0;
-            srv = this->base_driver.invoke((char)Opcode::OPCODE_TRAIN_BEGIN, train_args);
+            srv = this->base_driver.invoke(Opcode::OPCODE_TRAIN_BEGIN, train_args);
             #if ROBOT_CONTROLLER_TEST
-                this->mode = Mode::MODE_TRAINING;
+                this->mode = MODE_TRAINING;
                 node_ct = 0;
-                this->nd_training.route = route_ct++;
                 ROS_INFO("Start Training @ R%d", this->nd_training.route);
             #else
                 if(this->base_driver.is_invoke_valid(srv)){
+                    // flush all data for route nd.training.route
+                    this->graph.erase(this->rn_img[this->nd_training.route]);
+                    this->rn_img.erase(this->rn_img.begin() + this->nd_training.route);
                     ROS_INFO("Start Training @ R%d", this->nd_training.route);
                 }
                 else{
@@ -118,83 +113,13 @@ void Controller::idle()
     }
     this->drive(this->op_vel);
 }
-void Controller::homing()
+
+/* busy wait */
+void Controller::calibration()
 {
-    RobotInvoke srv;
-    switch(this->op){
-        case Opcode::OPCODE_NONE:
-            break;
-        case Opcode::OPCODE_ORIGIN:
-            if( !(this->stage_bm & STAGE_CALIB_BEGIN) ){
-                srv = this->base_driver.invoke((char)Opcode::OPCODE_ORIGIN, vector<int16_t>());
-                #if ROBOT_CONTROLLER_TEST
-                    this->pose_tracer.clear();
-                    // this->is_origin_set = true;
-                    this->stage_bm |= STAGE_ORIGIN_SET;
-                    ROS_INFO("Origin set");
-                #else
-                    if(this->base_driver.is_invoke_valid(srv)){\
-                        this->pose_tracer.clear();
-                        // this->is_origin_set = true;
-                        this->stage_bm |= STAGE_ORIGIN_SET;
-                        ROS_INFO("Origin set");
-                    }
-                    else{
-                        ROS_ERROR("<Origin set Srv-Err>");
-                    }
-                #endif
-            }
-            break;
-        case Opcode::OPCODE_CALIB_BEGIN:
-            if((this->stage_bm & STAGE_ORIGIN_SET) && !(this->stage_bm & STAGE_CALIB_BEGIN)){
-                srv = this->base_driver.invoke((char)Opcode::OPCODE_CALIB_BEGIN, vector<int16_t>());
-                #if ROBOT_CONTROLLER_TEST
-                    // this->is_calib_begin = true;
-                    this->stage_bm |= STAGE_CALIBED;
-                    ROS_INFO("Calib begin");
-                #else
-                    if(this->base_driver.is_invoke_valid(srv)){
-                        this->stage_bm |= STAGE_CALIB_BEGIN;
-                        ROS_INFO("Calibration begin");
-                    }
-                    else{
-                        ROS_ERROR("<Calib begin Srv-Err>");
-                    }
-                #endif
-            }
-            else{
-                if(!(this->stage_bm & STAGE_ORIGIN_SET))
-                    ROS_ERROR("[Calib begin Err], Set Origin first plz");
-                else if(this->stage_bm & STAGE_CALIB_BEGIN)
-                    ROS_ERROR("[Calib begin Err], calib already started");
-            }
-            break;
-        case Opcode::OPCODE_CALIB_FINISH:
-            if(this->stage_bm & STAGE_CALIB_BEGIN){
-                this->stage_bm |= STAGE_CALIBED;
-                this->stage_bm &= ~(STAGE_CALIB_BEGIN);
-                srv = this->base_driver.invoke((char)Opcode::OPCODE_CALIB_FINISH, vector<int16_t>());
-                #if ROBOT_CONTROLLER_TEST
-                    ROS_INFO("Calib finish");
-                    this->mode = Mode(Mode::MODE_IDLE);
-                #else
-                    if(this->base_driver.is_invoke_valid(srv)){
-                        ROS_INFO("Calib finish, switch to Idle mode");
-                    }
-                    else{
-                        ROS_ERROR("<Calib_finish Srv-Err>");
-                    }
-                #endif
-            }
-            else{
-                ROS_ERROR("[Calib finish Err], Calib_begin not executed");
-            }
-            break;
-        default:
-            ROS_INFO("In Homing mode, %c is not allowed", (char)this->op);
-            break;
-    }
-    this->drive(this->op_vel);
+    #ifdef ROBOT_CONTROLLER_TEST
+        this->mode = MODE_IDLE;
+    #endif
 }
 void Controller::training()
 {
@@ -208,10 +133,9 @@ void Controller::training()
             break;
         case Opcode::OPCODE_TRAIN_FINISH:
             if(this->nd_training.node >= TRAIN_NODE_MIN){
-                this->stage_bm |= STAGE_TRAINED;
-                srv = this->base_driver.invoke((char)Opcode::OPCODE_TRAIN_FINISH, vector<int16_t>());
+                srv = this->base_driver.invoke(Opcode::OPCODE_TRAIN_FINISH, vector<int16_t>());
                 #if ROBOT_CONTROLLER_TEST
-                    this->mode = Mode::MODE_IDLE;
+                    this->mode = MODE_IDLE;
                     this->nd_training.route++;
                     ROS_INFO("Training finished");
                 #else
@@ -225,7 +149,7 @@ void Controller::training()
                 #endif
             }
             else{
-                ROS_INFO("Should set at least 2 nodes before finishing training");
+                ROS_INFO("Should set at least 2 nodes before finishing training, invokation rejected");
             }
             break;
         default:
@@ -241,8 +165,9 @@ void Controller::training()
 */
 void Controller::working()
 {
+    /* bug check safety*/
     if(!this->check_safety()){ // not safe, stop current work, call help
-        auto srv = this->base_driver.invoke((char)Opcode::OPCODE_WORK_FINISH, vector<int16_t>());
+        auto srv = this->base_driver.invoke(Opcode::OPCODE_WORK_FINISH, vector<int16_t>());
         if(this->base_driver.is_invoke_valid(srv)){
             ROS_WARN("Encounter an obstacle in front");
             this->isr(ISR_OBSTACLE);
@@ -251,27 +176,25 @@ void Controller::working()
             ROS_ERROR("<Working finish Srv-Err>");
         }
     }
-    else{
-        if(this->tracking_status == Tracking_status::TRACKING_STATUS_ARRIVAL){
-            auto srv = this->base_driver.invoke((char)Opcode::OPCODE_WORK_FINISH, vector<int16_t>());
-            if(this->base_driver.is_invoke_valid(srv)){
-                this->work_list.pop_front();
-                // claim that we have given up that occupied node
-                this->ocp_vptr = this->work_list.front();
-                ROS_INFO("Work finished");
-            }
-            else{
-                ROS_ERROR("<Working finish Srv-Err>");
-            }
+    else if(this->tracking_status == Tracking_status::TRACKING_STATUS_ARRIVAL){
+        auto srv = this->base_driver.invoke(Opcode::OPCODE_WORK_FINISH, vector<int16_t>());
+        if(this->base_driver.is_invoke_valid(srv)){
+            this->work_list.pop_front();
+            // claim that we have given up that occupied node
+            this->ocp_vptr = this->work_list.front();
+            ROS_INFO("Work finished");
         }
         else{
-            ROS_INFO("I'm working happily!");
+            ROS_ERROR("<Working finish Srv-Err>");
         }
+    }
+    else{
+        ROS_INFO("I'm working happily!");
     }
 }
 PrimitiveType Controller::set_node()
 {
-    auto srv = this->base_driver.invoke((char)Opcode::OPCODE_SETNODE, vector<int16_t>());
+    auto srv = this->base_driver.invoke(Opcode::OPCODE_SETNODE, {SETNODE_PASS_EXACT, this->pose_tracer.get_headway()});
     PrimitiveType nd;
     nd.route = nd.node = -1;
     #if ROBOT_CONTROLLER_TEST
@@ -281,6 +204,8 @@ PrimitiveType Controller::set_node()
         srv.response.feedback = vector<int16_t>(1, node_ct++);
     #endif
     if(this->base_driver.is_invoke_valid(srv)){
+        // update training parameters
+        this->nd_training.node = nd.node;
         // graph routine
         nd.route = this->nd_training.route, nd.node = srv.response.feedback[0];
         auto coor = this->pose_tracer.get_coor();
@@ -322,7 +247,6 @@ PrimitiveType Controller::set_node()
         }
         // done
         this->ocp_vptr = vptr;
-        this->nd_training.node++;
         ROS_INFO("Node #R%d, #N%d @ (%f,%f) set successfully", nd.route, nd.node, nd.pos.x, nd.pos.y);
     }
     else{
