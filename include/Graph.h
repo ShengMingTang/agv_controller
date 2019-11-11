@@ -70,6 +70,9 @@ void Graph<V, E>::erase(vector<V*> _victims)
             }
         }
     }
+    if(!_victims.empty()){
+        this->is_up_to_date = false;
+    }
 }
 
 template<typename V, typename E>
