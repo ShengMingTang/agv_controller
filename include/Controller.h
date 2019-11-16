@@ -48,11 +48,15 @@
 #define TRAIN_NODE_MIN 2
 #define TRAIN_NODE_MAX 10000
 
+#define DRIVE_VEL_LINEAR 30
+#define DRIVE_VEL_ANGULAR 5
+
 // beeper
 #define ISR_OBSTACLE -1
 
 // if set this to zero, simply the same as no wrapper
-#define CLOSE_ENOUGH 5
+// Moved to compile options
+// #define CLOSE_ENOUGH 5
 
 using namespace std;
 using namespace tircgo;
@@ -91,7 +95,7 @@ namespace tircgo
         bool priviledged_instr();
         bool shutdown();
         bool set_node();
-        void drive(vector<int16_t> _vel);
+        bool drive(vector<int16_t> _vel);
         void runtime_vars_mgr(bool _flag);
 
         /* API suport */

@@ -134,8 +134,8 @@ vector<int16_t> Controller::decode_drive()
         }
         // decode vw
         if(axes[JOYAXES_CROSS_UD] != 0 || axes[JOYAXES_CROSS_LR] != 0){
-            int16_t vv = axes[JOYAXES_CROSS_UD] * MOTOR_LINEAR_LIMIT / 2;
-            int16_t ww = axes[JOYAXES_CROSS_LR] * MOTOR_ANGULAR_LIMIT / 2;
+            int16_t vv = axes[JOYAXES_CROSS_UD] * DRIVE_VEL_LINEAR;
+            int16_t ww = axes[JOYAXES_CROSS_LR] * DRIVE_VEL_ANGULAR;
             vv = (ww == 0) ? vv : 0;
             return {vv, ww};
         }
@@ -148,12 +148,12 @@ vector<int16_t> Controller::decode_drive()
     drive machine interface, locked if trained (not implemented)
     Call this only in Idle, Homing, Training
 */
-void Controller::drive(vector<int16_t> _vel)
+bool Controller::drive(vector<int16_t> _vel)
 {
     this->op_vel = _vel;
     // trained but not in training
     if((this->stage_bm & MODE_TRAINING) && this->mode != MODE_TRAINING)
-        return ;
+        return false;
     // legal condition to drive
     double t = (ros::Time::now() - this->pose_tracer.get_starttime()).toSec();
     if(t >= ROBOT_CONTROLLER_DRIVE_TIMEOUT || _vel[0] != this->pose_tracer.get_vel()[0] || _vel[1] != this->pose_tracer.get_vel()[1]){ // different motion
@@ -182,10 +182,12 @@ void Controller::drive(vector<int16_t> _vel)
                 }
                 else{
                     ROS_INFO("Unsafe condition, drive rejected");
+                    return false;
                 }
             #endif
         }
     }
+    return true;
 }
 
 /* Sys related */
@@ -254,18 +256,12 @@ void Controller::status_tracking(const RobotStatus::ConstPtr& _msg)
         #if !ROBOT_CONTROLLER_TEST
             this->mode = _msg->now_mode;
             this->stage_bm |= _msg->now_mode;
-            // if(_msg->jreply.is_activated){
-            //     this->tracking_status = (Tracking_status)_msg->jreply.reply;
-            // }
             if(_msg->tracking_status_reply.is_activated){
                 this->tracking_status = (Tracking_status)_msg->tracking_status_reply.reply;
             }
             else{
                 ROS_WARN("Tracking_status_reply invalid");
             }
-            // if(_msg->lreply.is_activated){
-            //     this->lidar_levels = _msg->lreply.level_reply;
-            // }
             if(_msg->lidar_level_reply.is_activated){
                 this->lidar_levels = _msg->lidar_level_reply.level_reply;
             }

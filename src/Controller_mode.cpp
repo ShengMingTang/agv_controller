@@ -169,6 +169,8 @@ void Controller::calibration()
     #ifdef ROBOT_CONTROLLER_TEST
         this->mode = MODE_IDLE;
         this->stage_bm |= MODE_CALIB;
+    #else
+        ROS_INFO("In Calibration");
     #endif
 }
 void Controller::training()
@@ -179,16 +181,18 @@ void Controller::training()
         case Opcode::OPCODE_NONE:
             break;
         case Opcode::OPCODE_SETNODE:
-            this->drive({0, 0}); // forced stop
-            ROS_WARN("Forced stop");
-            this->set_node();
+            if(!this->set_node()){
+                ROS_ERROR("Direct SetNode failed (Controller report)");
+            }
             break;
         case Opcode::OPCODE_TRAIN_FINISH:
             if(this->rn_img[this->nd_training.route].size() >= TRAIN_NODE_MIN){
                 #if ROBOT_CONTROLLER_TEST
-                    this->drive({0, 0}); // forced stop
                     if(this->set_node()){
                         ROS_WARN("Forced stop, one node automatically set");
+                    }
+                    else{
+                        ROS_ERROR("SetNode Failed when finishing training (Controller report)");
                     }
                     this->mode = MODE_IDLE;
                     ROS_WARN("Training finished");
@@ -200,9 +204,12 @@ void Controller::training()
                     auto s = this->dumps_graph();
                     ROS_WARN("\n%s", s.c_str());
                 #else
-                    this->drive({0, 0}); // forced stop
                     if(this->set_node()){
                         ROS_WARN("Forced stop, one node automatically set");
+                    }
+                    else{
+                        ROS_ERROR("SetNode Failed when finishing training (Controller report)");
+                        ROS_ERROR("SetNode failed but keep doing Training-Finish");
                     }
                     srv = this->base_driver.invoke(Opcode::OPCODE_TRAIN_FINISH, vector<int16_t>());
                     if(this->base_driver.is_invoke_valid(srv)){
@@ -285,60 +292,68 @@ bool Controller::set_node()
         return false;
     }
     // body
-    auto srv = this->base_driver.invoke(Opcode::OPCODE_SETNODE, {SETNODE_PASS_EXACT, this->pose_tracer.get_headway()});
-    #if ROBOT_CONTROLLER_TEST
-        // modify response
-        srv.response.is_legal_op = srv.response.is_arg_valid = srv.response.is_activated = true;
-        srv.response.error_code = (int16_t)Errcode::ERRCODE_OK; // ok
-        srv.response.feedback = vector<int16_t>(1, node_ct++);
-    #endif
-    if(this->base_driver.is_invoke_valid(srv)){
-        // graph routine
-        nd.route = this->nd_training.route, nd.node = srv.response.feedback[0];
-        // update training parameters
-        this->nd_training.node = nd.node;
-        // check if there is a close vertex so that they can merge
-        VertexType* vptr = nullptr;
-        for(auto vec : this->rn_img){
-            for(auto it : vec){
-                if(dist(it->pos, nd.pos) < CLOSE_ENOUGH){
-                    vptr = it;
-                    break;
+    if(this->drive({0, 0})){ // forced stop
+        ROS_WARN("Forced stop");
+        auto srv = this->base_driver.invoke(Opcode::OPCODE_SETNODE, {SETNODE_PASS_EXACT, this->pose_tracer.get_headway()});
+        #if ROBOT_CONTROLLER_TEST
+            // modify response
+            srv.response.is_legal_op = srv.response.is_arg_valid = srv.response.is_activated = true;
+            srv.response.error_code = (int16_t)Errcode::ERRCODE_OK; // ok
+            srv.response.feedback = vector<int16_t>(1, node_ct++);
+        #endif
+        if(this->base_driver.is_invoke_valid(srv)){
+            // graph routine
+            nd.route = this->nd_training.route, nd.node = srv.response.feedback[0];
+            // update training parameters
+            this->nd_training.node = nd.node;
+            // check if there is a close vertex so that they can merge
+            VertexType* vptr = nullptr;
+            for(auto vec : this->rn_img){
+                for(auto it : vec){
+                    if(dist(it->pos, nd.pos) < CLOSE_ENOUGH){
+                        vptr = it;
+                        break;
+                    }
                 }
+                if(vptr)
+                    break;
             }
-            if(vptr)
-                break;
+            // make a vertex for the graph, retrieve its reference if it is a new vertex
+            if(!vptr){ // need to create a new one
+                VertexType tmp;
+                vptr = this->graph.add_vertex(tmp);
+                vptr->pos = nd.pos;
+            }
+            // add the new routenode to the vertex
+            vptr->aliases.insert(nd);
+            this->rn_img[nd.route].push_back(vptr);
+            // build forward and backward edge if it is not the first node in the current route
+            if(nd.node > 0){
+                // build edge for forward direction, add it to graph
+                EdgeType e;
+                e.src = this->rn_img[nd.route][nd.node - 1];
+                e.dst = vptr;
+                e.w = this->pose_tracer.get_dist();
+                e.walk = this->pose_tracer.get_path();
+                this->graph.add_edge(e);
+                // flip the edge for backwawrd direction, add it to graph
+                swap(e.src, e.dst);
+                e.walk = flip_walk(e.walk);
+                this->graph.add_edge(e);
+            }
+            // done
+            this->ocp_vptr = vptr;
+            ROS_INFO("Node #R%d, #N%d @ (%f,%f) set successfully", nd.route, nd.node, nd.pos.x, nd.pos.y);
+            return true;
         }
-        // make a vertex for the graph, retrieve its reference if it is a new vertex
-        if(vptr == nullptr){ // need to create a new one
-            VertexType tmp;
-            vptr = this->graph.add_vertex(tmp);
-            vptr->pos = nd.pos;
+        else{
+            ROS_ERROR("<SetNode Srv-Err>, this call has no effect");
+            return false;
         }
-        // add the new routenode to the vertex
-        vptr->aliases.insert(nd);
-        this->rn_img[nd.route].push_back(vptr);
-        // build forward and backward edge if it is not the first node in the current route
-        if(nd.node >= 1){
-            // build edge for forward direction, add it to graph
-            EdgeType e;
-            e.src = this->rn_img[nd.route][nd.node - 1];
-            e.dst = vptr;
-            e.w = this->pose_tracer.get_dist();
-            e.walk = this->pose_tracer.get_path();
-            this->graph.add_edge(e);
-            // flip the edge for backwawrd direction, add it to graph
-            swap(e.src, e.dst);
-            e.walk = flip_walk(e.walk);
-            this->graph.add_edge(e);
-        }
-        // done
-        this->ocp_vptr = vptr;
-        ROS_INFO("Node #R%d, #N%d @ (%f,%f) set successfully", nd.route, nd.node, nd.pos.x, nd.pos.y);
-        return true;
+
     }
     else{
-        ROS_ERROR("<SetNode Srv-Err>, this call has no effect");
+        ROS_ERROR("Drive error in SetNode");
         return false;
     }
 }
