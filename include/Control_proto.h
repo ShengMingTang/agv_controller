@@ -138,15 +138,15 @@ namespace tircgo
         WIFI_PUR_ANS = "A",
         WIFI_PUR_NODEOCP = "N",
         WIFI_PUR_COST = "C";
-    const char
-        WIFI_ERR_NONE = '0',
-        WIFI_ERR_TIMEOUT = 'T',
-        WIFI_ERR_WS = 'W',
-        WIFI_ERR_ROBOT = 'R',
-        WIFI_ERR_ANS = 'A',
-        WIFI_ERR_NODE = 'N',
-        WIFI_ERR_COST = 'C',
-        WIFI_ERR_NETWORK = 'w';
+    const string
+        WIFI_ERR_NONE("0"),
+        WIFI_ERR_TIMEOUT("T"),
+        WIFI_ERR_WS("W"),
+        WIFI_ERR_ROBOT("R"),
+        WIFI_ERR_ANS("A"),
+        WIFI_ERR_NODE("N"),
+        WIFI_ERR_COST("C"),
+        WIFI_ERR_NETWORK("w");
     const int WIFI_BUFF_SIZE = 50;
     /* Debug*/
     const char MONITOR_TOPIC[] = "controller/monitor_topic";
