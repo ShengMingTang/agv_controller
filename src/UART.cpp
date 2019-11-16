@@ -16,12 +16,13 @@ RobotInvoke UART::invoke(const Opcode _op, const std::vector<int16_t> _args)
     srv.request.header.frame_id = this->frame_id;
     srv.request.operation = (char)_op;
     srv.request.argument = _args;
-    #if AGV_CONTROLLER_TEST
+    #if ROBOT_CONTROLLER_TEST
         srv.response.is_legal_op = srv.response.is_arg_valid = srv.response.is_activated = true;
         srv.response.error_code = 1;
     #else
-        if(!this->invoke_clt.call(srv))
+        if(!this->invoke_clt.call(srv)){
             ROS_ERROR("|---X---> UART(Srv) failed");
+        }
     #endif
     return srv;
 }

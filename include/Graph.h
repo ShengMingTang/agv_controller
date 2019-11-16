@@ -26,7 +26,7 @@ public:
     /* return pair of cost and path */
     void Floyd_Warshall();
     pair< double, list<V*> > shortest_path(V *_start, V *_end);
-private: 
+// private: 
     list<V> vertices;
     map<V*, list<E> > edges;
     map< V*, map< V*, pair<double, V*> > > adjMat;
@@ -143,7 +143,8 @@ pair<double, list<V*> > Graph<V, E>::shortest_path(V *_start, V *_end)
         }
         // generate path
         V* ptr = _end;
-        while(ptr){
+        ret.second.push_front(_end);
+        while(ptr != _start){
             auto p = this->adjMat[_start][ptr];
             ret.first += p.first;
             ret.second.push_front(p.second);

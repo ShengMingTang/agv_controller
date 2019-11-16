@@ -52,7 +52,7 @@
 #define ISR_OBSTACLE -1
 
 // if set this to zero, simply the same as no wrapper
-#define CLOSE_ENOUGH 1
+#define CLOSE_ENOUGH 5
 
 using namespace std;
 using namespace tircgo;
@@ -74,8 +74,9 @@ namespace tircgo
         ~Controller();
         void setup(); // stop @ here
         void loopOnce(); // maybe function queue drivable
-        bool ok() const{return this->stage_bm & MODE_NOTOK;}
+        bool ok() const{return !(this->stage_bm & MODE_NOTOK);}
         void monitor_display()const;
+        string dumps_graph();
     private:
         /* Mode related */
         void isr(const int _inter); // interrupt service routine
@@ -89,7 +90,7 @@ namespace tircgo
         bool is_target_ocp(const VertexType *vptr);
         bool priviledged_instr();
         bool shutdown();
-        PrimitiveType set_node();
+        bool set_node();
         void drive(vector<int16_t> _vel);
         void runtime_vars_mgr(bool _flag);
 

@@ -24,23 +24,33 @@ bool Controller::askdata_serve(Ask_Data::Request &_req, Ask_Data::Response &_res
 {
     CtrlData data;
     data.mode = (int16_t)this->mode;
-    geometry_msgs::Quaternion p = this->pose_tracer.get_coor();
-    data.coor.x = p.x, data.coor.y = p.y, data.coor.z = p.z;
+    data.stage_bm = this->stage_bm;
+
     data.tracking_status = (int16_t)this->tracking_status;
     data.lidar_levels = this->lidar_levels;
-
-    data.is_origin_set = (this->stage_bm & STAGE_ORIGIN_SET) == 0;
-
-    data.is_calibed = (this->stage_bm & STAGE_CALIBED) == 0;
-
-    data.is_trained = (this->stage_bm & STAGE_TRAINED) == 0;
+    
+    geometry_msgs::Quaternion p = this->pose_tracer.get_coor();
+    data.coor.x = p.x, data.coor.y = p.y, data.coor.z = p.z;
     
     data.nd_training = this->nd_training;
-    data.nd_target = *(this->target_vptr->aliases.begin());
+    data.graph = this->dumps_graph();
+
     data.nd_ocp = *(this->ocp_vptr->aliases.begin());
+    data.nd_target = *(this->target_vptr->aliases.begin());
     for(auto it : this->work_list){
         data.work_list.push_back(*(it->aliases.begin()));
     }
-    _res.SMData = data;
+    _res.ctrlData = data;
     return true;
+}
+bool Controller::is_target_ocp(const VertexType *vptr)
+{
+    // request a service from Ng
+    tircgo_msgs::WifiNodeOcp srv;
+    srv.request.q_rn = *(vptr->aliases.begin());
+    if(!this->nodeocp_clt.call(srv)){
+        ROS_ERROR("<NodeOcp Srv-Err>");
+        return false;
+    }
+    return !(srv.response.error_code == WIFI_ERR_NONE && srv.response.is_ocp);
 }

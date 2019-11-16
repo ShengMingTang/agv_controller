@@ -42,8 +42,10 @@ using namespace std;
 
 namespace tircgo
 {
+    // graphviz
+    const char graphviz_color[5][20] = {"indianred", "orange3", "yellow3", "green3", "lightblue3"};
     const int MSG_QUE_SIZE = 100;
-    const float JOY_CD = 0.1;
+    const float JOY_CD = 0.05;
     /* UART */
     enum class Tracking_status: int16_t
     {
@@ -108,8 +110,8 @@ namespace tircgo
         JOYBUTTON_RT = 7,
         JOYBUTTON_BACK = 8,
         JOYBUTTON_START = 9,
-        JOYBUTTON_MODE = 10,
-        JOYBUTTON_VIBRA = 11;
+        JOYBUTTON_STICK_LEFT = 10,
+        JOYBUTTON_STICK_RIGHT = 11;
     // axes, L > 0, R < 0, U > 0, D < 0
     const int
         JOYAXES_STICKLEFT_LR = 0,
