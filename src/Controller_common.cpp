@@ -34,7 +34,7 @@ void Controller::setup()
     RobotInvoke srv;
     ROS_INFO("Wait for UART");
     do{
-        srv = this->base_driver.invoke(Opcode::OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_3L_2S});
+        srv = this->base_driver.invoke(Opcode::OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_3L_2S, 1});
     }while(!(this->base_driver.is_invoke_valid(srv)));
     #endif
     ROS_INFO("Setup Done");
@@ -44,7 +44,7 @@ void Controller::isr(const int _inter)
     switch (_inter)
     {
     case ISR_OBSTACLE:{
-        auto srv = this->base_driver.invoke(Opcode::OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_2S});
+        auto srv = this->base_driver.invoke(Opcode::OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_2S, 1});
         #if ROBOT_CONTROLLER_TEST
             ROS_INFO("Calling ISR_OBSTAVLE (Test)");
         #else
@@ -227,6 +227,7 @@ bool Controller::shutdown()
         this->log();
         this->stage_bm |= MODE_NOTOK;
         ROS_INFO("Controller Shutdown!");
+        this->base_driver.invoke(Opcode::OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_2S, 3});
     }
     else{
         ROS_ERROR("<Shutdownroff Srv-Err>");
@@ -266,7 +267,8 @@ void Controller::status_tracking(const RobotStatus::ConstPtr& _msg)
                 this->lidar_levels = _msg->lidar_level_reply.level_reply;
             }
             else{
-                ROS_WARN("Lidar_level_reply invalid");
+                if(this->mode & MODE_WORKING)
+                    ROS_WARN("Lidar_level_reply invalid");
             }
         #endif
     }

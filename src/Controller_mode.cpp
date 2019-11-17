@@ -87,7 +87,9 @@ void Controller::idle()
                     this->drive({0, 0});
                     ROS_WARN("Forced stop");
                     this->clear();
-                    this->base_driver.invoke(Opcode::OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_3L_2S});
+                    this->base_driver.invoke(Opcode::OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_3L_2S, 1});
+                    // test
+                    this->stage_bm |= MODE_CALIB;
                 }
                 else{
                     ROS_ERROR("<Calib Srv-Err>");
