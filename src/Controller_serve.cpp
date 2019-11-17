@@ -45,12 +45,15 @@ bool Controller::askdata_serve(Ask_Data::Request &_req, Ask_Data::Response &_res
 }
 bool Controller::is_target_ocp(const VertexType *vptr)
 {
-    // request a service from Ng
     tircgo_msgs::WifiNodeOcp srv;
     srv.request.q_rn = *(vptr->aliases.begin());
-    if(!this->nodeocp_clt.call(srv)){
-        ROS_ERROR("<NodeOcp Srv-Err>");
+    #if ROBOT_CONTROLLER_WIFI
+        if(!this->nodeocp_clt.call(srv)){
+            ROS_ERROR("<NodeOcp Srv-Err>");
+            return false;
+        }
+        return !(srv.response.error_code == WIFI_ERR_NONE && srv.response.is_ocp);
+    #else
         return false;
-    }
-    return !(srv.response.error_code == WIFI_ERR_NONE && srv.response.is_ocp);
+    #endif
 }

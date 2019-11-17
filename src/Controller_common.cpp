@@ -4,7 +4,7 @@ base_driver{UART(_id)}
 ,joystick{Joystick(_id)}
 ,tracking_status_sub{this->n.subscribe(ROBOTSTATUS_TOPIC, MSG_QUE_SIZE, &Controller::status_tracking, this)}
 ,monitor{this->n.advertise<std_msgs::String>(MONITOR_TOPIC, MSG_QUE_SIZE)}
-,lidar_levels {vector<int16_t>(4, LIDAR_LEVEL_L)}
+,lidar_levels {vector<int16_t>(4, LIDAR_LEVEL_FAR)}
 ,rn_img{vector< vector<VertexType*> >(TRAIN_ROUTE_MAX, vector<VertexType*>() )}
 
 ,nodeocp_srv{this->n.advertiseService(ROBOT_WIFI_NODEOCP_INNER, &Controller::nodeocp_serve, this)}
@@ -27,61 +27,46 @@ Controller::~Controller()
 }
 void Controller::setup()
 {
-    ROS_INFO("Controller Setup:");
-    ROS_INFO("Loop at frequency %d", ROBOT_LOOP_FREQ);
+    ROS_INFO("Controller Setup :");
     ROS_WARN("Only objects in front/back could block, neglect side objects");
-    #if !ROBOT_CONTROLLER_TEST
-    RobotInvoke srv;
+    ROS_INFO("System parameter :");
+    ROS_INFO("> Loop at frequency %d", ROBOT_LOOP_FREQ);
+    ROS_INFO("> Test mode on/off : %d", ROBOT_CONTROLLER_TEST);
+    ROS_INFO("> Drive Refresh Time : %.1f", ROBOT_CONTROLLER_DRIVE_TIMEOUT);
+    ROS_INFO("> Safety issue on/off : %d", ROBOT_CONTROLLER_SAFE);
+    ROS_INFO("> Node merge max separation : %d", CLOSE_ENOUGH);
+    
     ROS_INFO("Wait for UART");
+    RobotInvoke srv;
     do{
-        srv = this->base_driver.invoke(Opcode::OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_3L_2S, 1});
+        srv = this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_3L_2S, 1});
     }while(!(this->base_driver.is_invoke_valid(srv)));
-    #endif
+    
     ROS_INFO("Setup Done");
 }
-void Controller::isr(const int _inter)
-{
-    switch (_inter)
-    {
-    case ISR_OBSTACLE:{
-        auto srv = this->base_driver.invoke(Opcode::OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_2S, 1});
-        #if ROBOT_CONTROLLER_TEST
-            ROS_INFO("Calling ISR_OBSTAVLE (Test)");
-        #else
-            if(!(this->base_driver.is_invoke_valid(srv))){
-                ROS_ERROR("<ISR_OBS Srv Err>");
-            }
-        #endif
-    }
-        break;
-    default:
-        break;
-    }
-}
-
 /*
     Drive related
     decode opcode according to state
     Non-state-transition-related op will be decoded as OPCODE_NONE 
     and get executed in place
 */
-Opcode Controller::decode_opcode()
+int16_t Controller::decode_opcode()
 {
-    Opcode ret = Opcode::OPCODE_NONE;
+    int16_t ret = OPCODE_NONE;
     if(this->op_ptr){
         vector<float> axes = this->op_ptr->axes;
         vector<int32_t> buttons = this->op_ptr->buttons;
         if(buttons[JOYBUTTON_BACK])
-            return Opcode::OPCODE_SHUTDOWN;        
+            return OPCODE_SHUTDOWN;        
         // decode mode dependent instructions
         switch(this->mode){
             case MODE_IDLE:
                 if(buttons[JOYBUTTON_Y])
-                    ret = Opcode::OPCODE_CALIB;
+                    ret = OPCODE_CALIB;
                 else if(buttons[JOYBUTTON_X])
-                    ret = Opcode::OPCODE_TRAIN_BEGIN;
+                    ret = OPCODE_TRAIN_BEGIN;
                 else if(buttons[JOYBUTTON_B])
-                    ret = Opcode::OPCODE_WORK_BEGIN;
+                    ret = OPCODE_WORK_BEGIN;
 
                 else if(buttons[JOYBUTTON_RT])
                     this->nd_target.route = (this->nd_target.route + 1) % TRAIN_ROUTE_MAX;
@@ -104,13 +89,13 @@ Opcode Controller::decode_opcode()
                 break;
             case MODE_TRAINING:
                 if(buttons[JOYBUTTON_X])
-                    ret = Opcode::OPCODE_SETNODE;
+                    ret = OPCODE_SETNODE;
                 else if(buttons[JOYBUTTON_B])
-                    ret = Opcode::OPCODE_TRAIN_FINISH;
+                    ret = OPCODE_TRAIN_FINISH;
                 break;
             case MODE_WORKING:
                 if(buttons[JOYBUTTON_A])
-                    ret = Opcode::OPCODE_WORK_FINISH;
+                    ret = OPCODE_WORK_FINISH;
                 break;
             default:
                 break;
@@ -121,7 +106,7 @@ Opcode Controller::decode_opcode()
 
 /*
     decode joystick to drive signal
-    independent of Opcode decoding
+    independent of int16_t decoding
 */
 vector<int16_t> Controller::decode_drive()
 {
@@ -151,9 +136,11 @@ vector<int16_t> Controller::decode_drive()
 bool Controller::drive(vector<int16_t> _vel)
 {
     this->op_vel = _vel;
+
     // trained but not in training
     if((this->stage_bm & MODE_TRAINING) && this->mode != MODE_TRAINING)
         return false;
+
     // legal condition to drive
     double t = (ros::Time::now() - this->pose_tracer.get_starttime()).toSec();
     if(t >= ROBOT_CONTROLLER_DRIVE_TIMEOUT || _vel[0] != this->pose_tracer.get_vel()[0] || _vel[1] != this->pose_tracer.get_vel()[1]){ // different motion
@@ -162,31 +149,23 @@ bool Controller::drive(vector<int16_t> _vel)
                // don't send redundant 0 vel
         }
         else{
-            // direct pass
-            #if ROBOT_CONTROLLER_TEST
-                this->pose_tracer.set_vw(_vel);
-            #else
-                bool is_safe = true;
-                #if ROBOT_CONTROLLER_SAFE
-                    is_safe = this->check_safety();
-                #endif
-                if(is_safe){
-                    auto srv = this->base_driver.invoke(Opcode::OPCODE_DRIVE, {_vel[0], _vel[1]});
-                    if(this->base_driver.is_invoke_valid(srv)){
-                        this->pose_tracer.set_vw(_vel);
-                    }
-                    else{
-                        ROS_ERROR("<Drive Srv-Err>");
-                    }
-
-                }
-                else{
-                    ROS_INFO("Unsafe condition, drive rejected");
-                    return false;
-                }
+            bool is_safe = true;
+            #if !ROBOT_CONTROLLER_TEST && ROBOT_CONTROLLER_SAFE
+                is_safe = this->check_safety();
             #endif
+            if(is_safe){
+                auto srv = this->base_driver.invoke(OPCODE_DRIVE, {_vel[0], _vel[1]});
+                if(this->base_driver.is_invoke_valid(srv)){
+                    this->pose_tracer.set_vw(_vel);
+                }
+            }
+            else{
+                ROS_INFO("Unsafe condition, drive rejected");
+                return false;
+            }
         }
     }
+
     return true;
 }
 
@@ -201,80 +180,68 @@ void Controller::clear()
         it.clear();
     }
     this->work_list.clear();
-    // reset all runtime RouteNodes
-    #if ROBOT_CONTROLLER_TEST
-        node_ct = 0;
-    #endif
     ROS_INFO("Clear data");
 }
 
 /* writing log files */
 void Controller::log()
 {
-    ROS_INFO("Write log, should implment serialization");
+    ROS_ERROR("Write log, should implment serialization");
 }
 
 /* shutdown routine */
 bool Controller::shutdown()
 {
-    auto srv = this->base_driver.invoke(Opcode::OPCODE_SHUTDOWN, vector<int16_t>());
-    #if ROBOT_CONTROLLER_TEST
-        this->log();
-        this->stage_bm |= MODE_NOTOK;
-        ROS_INFO("Controller Shutdown! (Test)");
-    #else
+    auto srv = this->base_driver.invoke(OPCODE_SHUTDOWN, vector<int16_t>());
     if(this->base_driver.is_invoke_valid(srv)){
         this->log();
         this->stage_bm |= MODE_NOTOK;
         ROS_INFO("Controller Shutdown!");
-        this->base_driver.invoke(Opcode::OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_2S, 3});
     }
-    else{
-        ROS_ERROR("<Shutdownroff Srv-Err>");
-    }
-    #endif
 }
 /* safety issue */
 bool Controller::check_safety()
 {
     if(this->mode != MODE_WORKING){
         if(this->op_vel[0] > 0)
-            return this->lidar_levels[LIDAR_DIR_FRONT] <= LIDAR_LEVEL_H;
+            return this->lidar_levels[LIDAR_DIR_FRONT] < LIDAR_LEVEL_CLOSE;
         else if(this->op_vel[0] < 0)
-            return this->lidar_levels[LIDAR_DIR_BACK] <= LIDAR_LEVEL_H;
+            return this->lidar_levels[LIDAR_DIR_BACK] < LIDAR_LEVEL_CLOSE;
         else
             return true;
     }
     else{
-        return this->lidar_levels[LIDAR_DIR_FRONT] <= LIDAR_LEVEL_H &&
-            this->lidar_levels[LIDAR_DIR_BACK] <= LIDAR_LEVEL_H; 
+        return this->lidar_levels[LIDAR_DIR_FRONT] < LIDAR_LEVEL_CLOSE &&
+            this->lidar_levels[LIDAR_DIR_BACK] < LIDAR_LEVEL_CLOSE; 
     }
 }
 /* subsriber to track status */
 void Controller::status_tracking(const RobotStatus::ConstPtr& _msg)
 {
-    if(_msg->is_activated){
-        #if !ROBOT_CONTROLLER_TEST
+    #if ROBOT_CONTROLLER_TEST
+        this->lidar_levels = vector<int16_t>(4, LIDAR_LEVEL_FAR);
+        this->tracking_status = TRACKING_STATUS_NORMAL;
+    #else
+        if(_msg->is_activated){
             this->mode = _msg->now_mode;
             this->stage_bm |= _msg->now_mode;
             if(_msg->tracking_status_reply.is_activated){
-                this->tracking_status = (Tracking_status)_msg->tracking_status_reply.reply;
+                this->tracking_status = _msg->tracking_status_reply.reply;
             }
-            else{
+            else if(this->mode & MODE_WORKING){
                 ROS_WARN("Tracking_status_reply invalid");
             }
             if(_msg->lidar_level_reply.is_activated){
                 this->lidar_levels = _msg->lidar_level_reply.level_reply;
             }
             else{
-                if(this->mode & MODE_WORKING)
-                    ROS_WARN("Lidar_level_reply invalid");
+                ROS_WARN("Lidar_level_reply invalid");
             }
-        #endif
-    }
-    else{
-        ROS_WARN("RobotStatus not activated");
-    }
+        }
+        else{
+            ROS_WARN("RobotStatus not activated");
+        }
+    #endif
 }
 
 /* interface for buffering joystick signal */
@@ -306,6 +273,7 @@ void Controller::monitor_display() const
 /* dumps graph to string*/
 string Controller::dumps_graph()
 {
+    const char graphviz_color[5][20] = {"indianred", "orange3", "yellow3", "green3", "lightblue3"};
     auto coor = this->pose_tracer.get_coor(); 
     geometry_msgs::Point pos;
     pos.x = coor.x, pos.y = coor.y;
@@ -387,7 +355,7 @@ void Controller::runtime_vars_mgr(bool _flag)
     else{
         this->op_vel = {0, 0};
         this->op_ptr = nullptr;
-        this->op = Opcode::OPCODE_NONE;
+        this->op = OPCODE_NONE;
     }
 }
 bool Controller::priviledged_instr()
@@ -395,7 +363,7 @@ bool Controller::priviledged_instr()
     bool ret = true;
     switch(this->op){
         // return statements
-        case Opcode::OPCODE_SHUTDOWN:
+        case OPCODE_SHUTDOWN:
             this->shutdown();
             break;
         default:

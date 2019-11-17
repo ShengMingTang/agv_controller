@@ -220,7 +220,7 @@ add_executable(tircgo_controller_node
 )
 target_compile_definitions(tircgo_controller_node PUBLIC 
   ROBOT_LOOP_FREQ=20 # loop frequency of whole controller
-  ROBOT_CONTROLLER_TEST=0 # 0 for real application, 1 for testing
+  ROBOT_CONTROLLER_TEST=1 # 0 for real application, 1 for testing
   ROBOT_CONTROLLER_DRIVE_TIMEOUT=0.4 #  timeout to refresh dirve speed 
   ROBOT_CONTROLLER_SAFE=1 # safely drive
   ROBOT_CONTROLLER_WIFI=1 # ask wifi before enter working
