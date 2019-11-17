@@ -1,6 +1,5 @@
-#ifndef PYBOT_H
-#define PYBOT_H
-// #include <set>
+#ifndef TIRCGO_PROTOCOL_H
+#define TIRCGO_PROTOCOL_H
 using namespace std;
 #define CLASS_HEADER_FILL(header)\
 {\
@@ -8,127 +7,133 @@ using namespace std;
     header.frame_id = this->frame_id;\
 }
 
+#define MSG_QUE_SIZE 20
 #define ANGULAR_FACTOR 0.1
+/* motor limits */
+#define MOTOR_LINEAR_LIMIT 60
+#define MOTOR_ANGULAR_LIMIT 10
+/* lidar */
+#define LIDAR_DIR_FRONT 0
+#define LIDAR_DIR_BACK 1
+#define LIDAR_DIR_LEFT 2
+#define LIDAR_DIR_RIGHT 3
+/* lidar level */
+#define LIDAR_LEVEL_FAR 0
+#define LIDAR_LEVEL_MED 1
+#define LIDAR_LEVEL_CLOSE 2
+
+/* device control */
+#define DEVICE_BEEPER 0
+#define DEVICE_LED_G 1
+#define DEVICE_LED_Y 2
+#define DEVICE_LED_R 3
+
+#define DEVICE_ON 0
+#define DEVICE_OFF 1
+
+#define DEVICE_BEEPER_3L_2S 2
+#define DEVICE_BEEPER_2S 3
+#define DEVICE_BEEPER_L 4
+
+#define DEVICE_LED_SLOW 2
+#define DEVICE_LED_MEDI 3
+#define DEVICE_LED_FAST 4
+
+/* setnode control */
+#define SETNODE_PASS_SLIDE 1
+#define SETNODE_PASS_EXACT 0
+#define SETNODE_HEADWAY_HEAD 1
+#define SETNODE_HEADWAY_TAIL 0
+
+/* UART */
+#define TRACKING_STATUS_NONE 0
+#define TRACKING_STATUS_NORMAL 1
+#define TRACKING_STATUS_OUT -2
+#define TRACKING_STATUS_OBSTACLE -3
+#define TRACKING_STATUS_ARRIVAL 127
+/* uart error code */
+#define ERRCODE_NONE 0
+#define ERRCODE_OK 1
+#define ERRCODE_NOT_OK -1
+#define ERRCODE_NETWROK -2
+#define ERRCODE_POINTS_TOO_CLOSE -3
+#define ERRCODE_LOST -4
+#define ERRCODE_INVAILD_OPCODE -5
+
+/* Joystick */
+#define JOY_CD 0.05
+/* buttons */
+#define JOYBUTTON_X 0
+#define JOYBUTTON_A 1
+#define JOYBUTTON_B 2
+#define JOYBUTTON_Y 3
+#define JOYBUTTON_LB 4
+#define JOYBUTTON_RB 5
+#define JOYBUTTON_LT 6
+#define JOYBUTTON_RT 7
+#define JOYBUTTON_BACK 8
+#define JOYBUTTON_START 9
+#define JOYBUTTON_STICK_LEFT 10
+#define JOYBUTTON_STICK_RIGHT 11
+/* axes, L > 0, R < 0, U > 0, D < 0 */
+#define JOYAXES_STICKLEFT_LR 0
+#define JOYAXES_STICKLEFT_UD 1
+#define JOYAXES_STICKRIGHT_LR 2
+#define JOYAXES_STICKRIGHT_UD 3
+#define JOYAXES_CROSS_LR 4
+#define JOYAXES_CROSS_UD 5
+
+#define ROBOTINVOKE_TOPIC "robot_invoke" 
+#define ROBOTSTATUS_TOPIC "robot_status" 
+#define JOYSTICKIO_TOPIC "joy" 
+
+/* Wifi */
+ #define ROBOT_WIFI_TOPIC "wifi_topic"  // implement
+ #define ROBOT_WIFI_SEND_SRV "robot_wifi_send" 
+ #define ROBOT_WIFI_NODEOCP_OUTER "robot_wifi_nodeocp_outer"  // robot ask other robots
+ #define ROBOT_WIFI_NODEOCP_INNER "robot_wifi_nodeocp_inner"  // robot answer other robots
+ #define ROBOT_WIFI_NODECOST_OUTER "robot_wifi_nodecost_outer"  // robot ask other robots
+ #define ROBOT_WIFI_NODECOST_INNER "robot_wifi_nodecost_inner"  // robot answer other robots
+ #define ROBOT_WIFI_TASK_CONFIRM_INNER "robot_wifi_taskconfirm_inner" 
+
+#define OPCODE_NONE '0' 
+#define OPCODE_RT_UP '1' 
+#define OPCODE_RT_DOWN '2' 
+#define OPCODE_ND_UP '3' 
+#define OPCODE_ND_DOWN '4' 
+
+/* hardware control */
+#define OPCODE_SHUTDOWN 'E' 
+#define OPCODE_DRIVE 'F' 
+#define OPCODE_SIGNAL 'G'  // for LED and beeper
+#define OPCODE_CALIB 'H' 
+#define OPCODE_TRAIN_BEGIN 'I' 
+#define OPCODE_SETNODE 'J' 
+#define OPCODE_TRAIN_FINISH 'K' 
+#define OPCODE_WORK_BEGIN 'L' 
+#define OPCODE_WORK_FINISH 'M' 
+
+/* wifi purpose */
+#define WIFI_PUR_WS "W"
+#define WIFI_PUR_ROBOT "R"
+#define WIFI_PUR_ANS "A"
+#define WIFI_PUR_NODEOCP "N"
+#define WIFI_PUR_COST "C"
+/* wifi error code */
+#define WIFI_ERR_NONE "0"
+#define WIFI_ERR_TIMEOUT "T"
+#define WIFI_ERR_WS "W"
+#define WIFI_ERR_ROBOT "R"
+#define WIFI_ERR_ANS "A"
+#define WIFI_ERR_NODE "N"
+#define WIFI_ERR_COST "C"
+#define WIFI_ERR_NETWORK "w"
+
+/* Debug*/
+#define MONITOR_TOPIC "controller/monitor_topic" 
+#define ROBOT_ASKDATA_TOPIC "cost_srv" 
+
 namespace tircgo
 {
-    const int MSG_QUE_SIZE = 100;
-    const float JOY_CD = 0.1;
-    /* UART */
-    enum class Tracking_status: int16_t
-    {
-        TRACKING_STATUS_NONE = 0,
-        TRACKING_STATUS_NORMAL = 1,
-        TRACKING_STATUS_OUT = -2,
-        TRACKING_STATUS_OBSTACLE = -3,
-        TRACKING_STATUS_ARRIVAL = 127,
-    };
-    // Lidar_dir
-    const size_t 
-        LIDAR_DIR_FRONT = 0,
-        LIDAR_DIR_BACK = 1,
-        LIDAR_DIR_LEFT = 2,
-        LIDAR_DIR_RIGHT = 3;
-    // Lidar_level
-    const int16_t 
-        LIDAR_LEVEL_H = 1,
-        LIDAR_LEVEL_M = 2,
-        LIDAR_LEVEL_L = 3;
-    enum class Mode: int
-    {
-        MODE_IDLE = 1,
-        MODE_HOMING = 2,
-        MODE_TRAINING = 3,
-        MODE_WORKING = 4,
-    };
-    enum class Opcode: char
-    {
-        // uart-defined
-        OPCODE_HOMEING = 'A',
-        OPCODE_ORIGIN = 'B',
-        OPCODE_CALIB_BEGIN = 'C',
-        OPCODE_CALIB_FINISH = 'D',
-        OPCODE_TRAIN_BEGIN = 'E',
-        OPCODE_SETNODE = 'F',
-        OPCODE_TRAIN_FINISH = 'G',
-        OPCODE_WORK_BEGIN = 'H',
-        OPCODE_WORK_FINISH = 'I',
-        OPCODE_POWEROFF = 'K',
-        OPCODE_DRIVE = 'M',
-        /* self-defined */
-        OPCODE_NONE = '0',
-        OPCODE_RT_UP = '1',
-        OPCODE_RT_DOWN = '2',
-        OPCODE_ND_UP = '3',
-        OPCODE_ND_DOWN = '4',
-    };
-    /* motor limits */
-    const double MOTOR_LINEAR_LIMIT = 60;
-    const double MOTOR_ANGULAR_LIMIT = 10;
-    enum class Errcode: int16_t
-    {
-        ERRCODE_NONE = 0,
-        ERRCODE_OK = 1,
-        ERRCODE_NOT_OK = -1,
-        ERRCODE_NETWROK = -2,
-        ERRCODE_POINTS_TOO_CLOSE = -3,
-        ERRCODE_LOST = -4,
-        ERRCODE_INVAILD_OPCODE = -5,
-    };
-    /* end UART */
-    
-    /* Joystick */
-    // buttons
-    const int
-        JOYBUTTON_X = 0,
-        JOYBUTTON_A = 1,
-        JOYBUTTON_B = 2,
-        JOYBUTTON_Y = 3,
-        JOYBUTTON_LB = 4,
-        JOYBUTTON_RB = 5,
-        JOYBUTTON_LT = 6,
-        JOYBUTTON_RT = 7,
-        JOYBUTTON_BACK = 8,
-        JOYBUTTON_START = 9,
-        JOYBUTTON_MODE = 10,
-        JOYBUTTON_VIBRA = 11;
-    // axes, L > 0, R < 0, U > 0, D < 0
-    const int
-        JOYAXES_STICKLEFT_LR = 0,
-        JOYAXES_STICKLEFT_UD = 1,
-        JOYAXES_STICKRIGHT_LR = 2,
-        JOYAXES_STICKRIGHT_UD = 3,
-        JOYAXES_CROSS_LR = 4,
-        JOYAXES_CROSS_UD = 5;
-    const char ROBOTINVOKE_TOPIC[] = "robot_invoke";
-    const char ROBOTSTATUS_TOPIC[] = "robot_status";
-    const char JOYSTICKIO_TOPIC[] = "joy";
-    /* Wifi */
-    const char ROBOT_WIFI_TOPIC[] = "wifi_topic"; // implement
-    const char ROBOT_WIFI_SEND_SRV[] = "robot_wifi_send";
-    const char ROBOT_WIFI_NODEOCP_OUTER[] = "robot_wifi_nodeocp_outer"; // robot ask other robots
-    const char ROBOT_WIFI_NODEOCP_INNER[] = "robot_wifi_nodeocp_inner"; // robot answer other robots
-    const char ROBOT_WIFI_NODECOST_OUTER[] = "robot_wifi_nodecost_outer"; // robot ask other robots
-    const char ROBOT_WIFI_NODECOST_INNER[] = "robot_wifi_nodecost_inner"; // robot answer other robots
-    const char ROBOT_WIFI_TASK_CONFIRM_INNER[] = "robot_wifi_taskconfirm_inner";
-    // wifi purpose
-    const string
-        WIFI_PUR_WS = "W",
-        WIFI_PUR_ROBOT = "R",
-        WIFI_PUR_ANS = "A",
-        WIFI_PUR_NODEOCP = "N",
-        WIFI_PUR_COST = "C";
-    const char
-        WIFI_ERR_NONE = '0',
-        WIFI_ERR_TIMEOUT = 'T',
-        WIFI_ERR_WS = 'W',
-        WIFI_ERR_ROBOT = 'R',
-        WIFI_ERR_ANS = 'A',
-        WIFI_ERR_NODE = 'N',
-        WIFI_ERR_COST = 'C',
-        WIFI_ERR_NETWORK = 'w';
-    const int WIFI_BUFF_SIZE = 50;
-    /* Debug*/
-    const char MONITOR_TOPIC[] = "controller/monitor_topic";
-    const char ROBOT_ASKDATA_TOPIC[] = "cost_srv";
 }
 #endif

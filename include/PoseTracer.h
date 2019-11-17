@@ -27,11 +27,13 @@ namespace tircgo
         // getter and setter
         vector<int16_t> get_vel() const{return this->vel;}
         geometry_msgs::Quaternion get_coor()const;
+        void set_coor(double _x, double _y){this->coor.x = _x, this->coor.y = _y;}
         double get_dist();
         list<WalkUnitType> get_path()const {return this->path;}
         ros::Time get_starttime()const {return this->starttime;}
+        int16_t get_headway()const;
     private:
-        geometry_msgs::Quaternion coor = {};
+        geometry_msgs::Quaternion coor;
         ros::Time starttime;
         
         // piecewise integration

@@ -55,17 +55,31 @@ geometry_msgs::Quaternion PoseTracer::get_coor()const
     double t = (ros::Time::now() - this->starttime).toSec();
     pos.x = this->coor.x + this->vel[0] * cos(this->coor.w) * t;
     pos.y = this->coor.y + this->vel[0] * sin(this->coor.w) * t;
-    pos.w = this->coor.w + (this->vel[1] * 0.1) * t;
+    pos.w = roundPi(this->coor.w + (this->vel[1] * 0.1) * t);
     return pos;
 }
 double PoseTracer::get_dist()
 {
-    double dist = 0, t = (ros::Time::now() - this->starttime).toSec();
+    double dist = 0;
+    double t = (ros::Time::now() - this->starttime).toSec();
     for(auto it : this->path){
         dist += abs(it.vel[0]) * it.dur.toSec();
     }
     dist += abs(this->vel[0] * t);
     return dist;
+}
+/*  return the headway of the last linear motion */
+int16_t PoseTracer::get_headway()const
+{
+    for(auto it = this->path.crbegin(); it != this->path.crend(); it++){
+        if((it->vel)[0]> 0){
+            return SETNODE_HEADWAY_HEAD;
+        }
+        else if((it->vel)[0] < 0){
+            return SETNODE_HEADWAY_TAIL;
+        }
+    }
+    return SETNODE_HEADWAY_HEAD;
 }
 double tircgo::roundPi(double _w)
 {
