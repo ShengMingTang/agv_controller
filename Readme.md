@@ -1,2 +1,2 @@
-# This branch is for tircgo
-## Version: 1107
+# Version : tircgo1107
+# Manual : https://hackmd.io/2yVRbpZSQiuUu7M4j-Bghg?view

@@ -113,8 +113,8 @@ void Graph<V, E>::Floyd_Warshall()
     }
     // body
     for(auto &mid : this->adjMat){
-        for(auto &start : this->adjMat){ // it is of type pair<V*, map>
-            for(auto &dst : start.second){ // it2 is of pair<V*, pair<double, V*>
+        for(auto &start : this->adjMat){
+            for(auto &dst : start.second){
                 double new_cost = this->adjMat[start.first][mid.first].first + this->adjMat[mid.first][dst.first].first;
                 double ori_cost = this->adjMat[start.first][dst.first].first;
                 if(new_cost < ori_cost){
