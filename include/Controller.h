@@ -46,6 +46,10 @@
 #define DRIVE_VEL_LINEAR 30
 #define DRIVE_VEL_ANGULAR 5
 
+#define CONTROL_SAFE 1
+#define CONTROL_WIFI 2
+// #define CONTROL_TEST 4
+
 using namespace std;
 using namespace tircgo;
 using namespace tircgo_uart;
@@ -63,13 +67,14 @@ namespace tircgo
     public:
         Controller(const string& _id);
         ~Controller();
-        void setup(); // stop @ here
+        void setup(int _argc, char **argv);
         void loopOnce(); // maybe function queue drivable
         bool ok() const{return !(this->stage_bm & MODE_NOTOK);}
         void monitor_display()const;
         string dumps_graph();
     private:
         /* Mode related */
+        void sleep();
         void idle();
         void calibration();
         void training();
@@ -97,6 +102,10 @@ namespace tircgo
         /* build time */
         ros::NodeHandle n;
         const string frame_id;
+        int control = CONTROL_WIFI | CONTROL_SAFE;
+        ros::Rate loop_rate = ros::Rate(20);
+        float drive_timeout = 0.4;
+        int close_enough = 60;
         
         /* UART related */
         UART base_driver;

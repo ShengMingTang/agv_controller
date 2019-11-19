@@ -47,13 +47,14 @@ bool Controller::is_target_ocp(const VertexType *vptr)
 {
     tircgo_msgs::WifiNodeOcp srv;
     srv.request.q_rn = *(vptr->aliases.begin());
-    #if ROBOT_CONTROLLER_WIFI
+    if(this->control & CONTROL_WIFI){
         if(!this->nodeocp_clt.call(srv)){
             ROS_ERROR("<NodeOcp Srv-Err>");
             return false;
         }
         return !(srv.response.error_code == WIFI_ERR_NONE && srv.response.is_ocp);
-    #else
+    }
+    else{
         return false;
-    #endif
+    }
 }

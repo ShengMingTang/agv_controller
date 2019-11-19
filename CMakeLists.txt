@@ -209,7 +209,7 @@ include_directories(
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
 add_executable(tircgo_controller_node 
-  src/test.cpp
+  src/main.cpp
   src/Controller_mode.cpp
   src/Controller_common.cpp
   src/Controller_serve.cpp
@@ -219,12 +219,7 @@ add_executable(tircgo_controller_node
   src/tircgo_common.cpp
 )
 target_compile_definitions(tircgo_controller_node PUBLIC 
-  ROBOT_LOOP_FREQ=20 # loop frequency of whole controller
-  ROBOT_CONTROLLER_TEST=1 # 0 for real application, 1 for testing
-  ROBOT_CONTROLLER_DRIVE_TIMEOUT=0.4 #  timeout to refresh dirve speed 
-  ROBOT_CONTROLLER_SAFE=1 # safely drive
-  ROBOT_CONTROLLER_WIFI=1 # ask wifi before enter working
-  CLOSE_ENOUGH=50
+  # ROBOT_CONTROLLER_TEST # 0 for real application, 1 for testing
 )
 target_link_libraries(tircgo_controller_node ${catkin_LIBRARIES})
 add_dependencies(tircgo_controller_node tircgo_controller_gencpp ${catkin_EXPORTED_TARGETS})

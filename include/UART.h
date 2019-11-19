@@ -20,7 +20,7 @@ namespace tircgo
         UART(const string& _parent_frame_id);
         ~UART();
         RobotInvoke invoke(const int16_t _op, const std::vector<int16_t> _args);
-        bool is_invoke_valid(RobotInvoke _srv);
+        bool is_invoke_valid(const RobotInvoke &_srv);
     private:
         ros::NodeHandle n;
         const string frame_id;

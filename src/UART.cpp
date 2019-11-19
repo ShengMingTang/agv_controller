@@ -39,61 +39,79 @@ RobotInvoke UART::invoke(const int16_t _op, const std::vector<int16_t> _args)
             break;
         }
     #else
-        if(!this->invoke_clt.call(srv)){
+        if(!this->invoke_clt.call(srv)){ // success
             ROS_ERROR("|---X---> UART(Srv) failed");
         }
     #endif
     return srv;
 }
-bool UART::is_invoke_valid(RobotInvoke _srv)
+bool UART::is_invoke_valid(const RobotInvoke  &_srv)
 {
-    stringstream ss;
-    bool ret = true;
-    ss << "Op = " << _srv.request.operation << ", ";
-    if(!_srv.response.is_legal_op){
-        ss << "Op ill. , ";
-        ret = false;
-    }
-    if(!_srv.response.is_arg_valid){
-        ss << "Args ill. , ";
-        ret = false;
-    }
-    else if(!_srv.response.is_activated){
-        ss << "UART---X---> AGV fail, ";
-        ret = false;
-    }
-    ss << "Err: " << _srv.response.error_code;
+    bool ret = _srv.response.is_legal_op && _srv.response.is_arg_valid && _srv.response.is_activated;
     if(!ret){
+        stringstream ss;
+        ss << "Op = " << _srv.request.operation << ", ";
+        if(!_srv.response.is_legal_op){
+            ss << "Op ill. , ";
+            ret = false;
+        }
+        if(!_srv.response.is_arg_valid){
+            ss << "Args ill. , ";
+            ret = false;
+        }
+        else if(!_srv.response.is_activated){
+            ss << "UART---X---> AGV fail, ";
+            ret = false;
+        }
+        ss << "Err: " << _srv.response.error_code;
+            ROS_ERROR(ss.str().c_str());
+    }
+    else{
         switch (_srv.request.operation)
         {
-            case OPCODE_SHUTDOWN:
-                ROS_ERROR("<Shutdownroff Srv-Err>");
-                break;
+            // normal
+            case OPCODE_RT_UP:
+            case OPCODE_RT_DOWN:
+            case OPCODE_ND_UP:
+            case OPCODE_ND_DOWN:
             case OPCODE_DRIVE:
-                ROS_ERROR("<Drive Srv-Err>");
+                this->invoke(OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_2S, 1});
                 break;
+            // priviledged
+            case OPCODE_SHUTDOWN:
             case OPCODE_CALIB:
-                ROS_ERROR("<Calib Srv-Err>");
-                break;
             case OPCODE_TRAIN_BEGIN:
-                ROS_ERROR("<Traing begin Srv-Err>");
-                break;
             case OPCODE_SETNODE:
-                ROS_ERROR("<SetNode Srv-Err>");
-                break;
             case OPCODE_TRAIN_FINISH:
-                ROS_ERROR("<Traing finished Srv-Err>");
-                break;
             case OPCODE_WORK_BEGIN:
-                ROS_ERROR("<Working begin Srv-Err>");
-                break;
             case OPCODE_WORK_FINISH:
-                ROS_ERROR("<Working finish Srv-Err>");
-                break;     
+                this->invoke(OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_L, 1});
+                break;
             default:
                 break;
         }
-        ROS_ERROR(ss.str().c_str());
+        switch (_srv.request.operation)
+        {
+            case OPCODE_WORK_BEGIN:
+                ROS_INFO("Head for R%dN%d", _srv.request.argument[0], _srv.request.argument[1]);
+                break;
+            case OPCODE_WORK_FINISH:
+                ROS_INFO("Work finished");
+            case OPCODE_CALIB:
+               ROS_INFO("End Calib");
+               break; 
+            case OPCODE_TRAIN_BEGIN:
+                ROS_INFO("Begin Training @ R%d", _srv.request.argument[0]);
+                break;
+            case OPCODE_TRAIN_FINISH:
+                ROS_INFO("Finish training");
+                break;
+            case OPCODE_SETNODE:
+                ROS_INFO("Node #%d set successfully", _srv.response.feedback[0]);
+                break;
+            default:
+                break;
+        }
     }
     return ret;
 }

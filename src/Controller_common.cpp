@@ -14,7 +14,7 @@ base_driver{UART(_id)}
 
 ,task_confirm_srv{this->n.advertiseService(ROBOT_WIFI_TASK_CONFIRM_INNER, &Controller::task_confirm_serve, this)}
 
-,askdata_srv{this->n.advertiseService(ROBOT_ASKDATA_TOPIC, &Controller::askdata_serve, this)}
+,askdata_srv{this->n.advertiseService(ROBOT_WIFI_ASKDATA_INNER, &Controller::askdata_serve, this)}
 
 {
     this->nd_training.route = this->nd_training.node = 0;
@@ -25,24 +25,80 @@ Controller::~Controller()
 {
     ROS_INFO("Controller destructed");
 }
-void Controller::setup()
+void Controller::setup(int _argc, char **argv)
 {
+    string opt;
+    for(int i = 1; i < _argc; i++){
+        opt = argv[i];
+        if(opt == "-h"){
+            ROS_INFO("[-h]: display this msg");
+            ROS_INFO("[-f]: int = 20, operating frequency");
+            ROS_INFO("[-d]: float = 0.4, drive timeout");
+            ROS_INFO("[-p]: int = 60, precision for merging nodes");
+            ROS_INFO("[-m]: int = 3, set control (using bitmap");
+            ROS_INFO("control = {wifi(2), safe(1)}");
+            this->mode |= MODE_NOTOK;
+        }
+        else if(opt == "-f"){
+            if(i + 1 < _argc){
+                opt = argv[i+1];
+                this->loop_rate = ros::Rate(stoi(opt));
+                i++;
+            }
+            else{
+                ROS_ERROR("Invalid number of cmd line args");
+            }
+        }
+        else if(opt == "-d"){
+            if(i + 1 < _argc){
+                opt = argv[i+1];
+                this->drive_timeout = stof(opt);
+                i++;
+            }
+            else{
+                ROS_ERROR("Invalid number of cmd line args");
+            }
+        }
+        else if(opt == "-p"){
+            if(i + 1 < _argc){
+                opt = argv[i+1];
+                this->close_enough = stof(opt);
+                i++;
+            }
+            else{
+                ROS_ERROR("Invalid number of cmd line args");
+            }
+        }
+        else if(opt == "-m"){
+            if(i + 1 < _argc){
+                opt = argv[i+1];
+                this->control = stoi(opt);
+                i++;
+            }
+            else{
+                ROS_ERROR("Invalid number of cmd line args");
+            }
+        }
+        else{
+            ROS_INFO("Unknown option, neglected");
+        }
+    }
     ROS_INFO("Controller Setup :");
     ROS_WARN("Only objects in front/back could block, neglect side objects");
     ROS_INFO("System parameter :");
-    ROS_INFO("> Loop at frequency %d", ROBOT_LOOP_FREQ);
-    ROS_INFO("> Test mode on/off : %d", ROBOT_CONTROLLER_TEST);
-    ROS_INFO("> Drive Refresh Time : %.1f", ROBOT_CONTROLLER_DRIVE_TIMEOUT);
-    ROS_INFO("> Safety issue on/off : %d", ROBOT_CONTROLLER_SAFE);
-    ROS_INFO("> Node merge max separation : %d", CLOSE_ENOUGH);
-    
+    // ROS_INFO("> Loop at frequency %f", this->loop_rate.cycleTime().toSec());
+    ROS_INFO("> Control mode : %d", this->control);
+    ROS_INFO("> Drive Refresh Time : %.1f", this->drive_timeout);
+    ROS_INFO("> Node merge max separation : %d", this->close_enough);
+    ROS_INFO("Setup Done");
     ROS_INFO("Wait for UART");
     RobotInvoke srv;
     do{
         srv = this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_3L_2S, 1});
-    }while(!(this->base_driver.is_invoke_valid(srv)));
-    
-    ROS_INFO("Setup Done");
+        this->loop_rate.sleep();
+        ros::spinOnce();
+    }while(ros::ok() && !(this->base_driver.is_invoke_valid(srv)));
+    ROS_INFO("UART is ready");
 }
 /*
     Drive related
@@ -57,7 +113,7 @@ int16_t Controller::decode_opcode()
         vector<float> axes = this->op_ptr->axes;
         vector<int32_t> buttons = this->op_ptr->buttons;
         if(buttons[JOYBUTTON_BACK])
-            return OPCODE_SHUTDOWN;        
+            return OPCODE_SHUTDOWN;
         // decode mode dependent instructions
         switch(this->mode){
             case MODE_IDLE:
@@ -143,16 +199,14 @@ bool Controller::drive(vector<int16_t> _vel)
 
     // legal condition to drive
     double t = (ros::Time::now() - this->pose_tracer.get_starttime()).toSec();
-    if(t >= ROBOT_CONTROLLER_DRIVE_TIMEOUT || _vel[0] != this->pose_tracer.get_vel()[0] || _vel[1] != this->pose_tracer.get_vel()[1]){ // different motion
+    if(t >= this->drive_timeout || _vel[0] != this->pose_tracer.get_vel()[0] || _vel[1] != this->pose_tracer.get_vel()[1]){ // different motion
         if(_vel[0] == 0 && this->pose_tracer.get_vel()[0] == 0 &&
            _vel[1] == 0 && this->pose_tracer.get_vel()[1] == 0){
                // don't send redundant 0 vel
         }
         else{
             bool is_safe = true;
-            #if !ROBOT_CONTROLLER_TEST && ROBOT_CONTROLLER_SAFE
-                is_safe = this->check_safety();
-            #endif
+            is_safe = this->check_safety();
             if(is_safe){
                 auto srv = this->base_driver.invoke(OPCODE_DRIVE, {_vel[0], _vel[1]});
                 if(this->base_driver.is_invoke_valid(srv)){
@@ -181,6 +235,8 @@ void Controller::clear()
     }
     this->work_list.clear();
     ROS_INFO("Clear data");
+    auto srv = this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_3L_2S, 1});
+    this->base_driver.is_invoke_valid(srv);
 }
 
 /* writing log files */
@@ -202,31 +258,50 @@ bool Controller::shutdown()
 /* safety issue */
 bool Controller::check_safety()
 {
+    bool ret;
     if(this->mode != MODE_WORKING){
         if(this->op_vel[0] > 0)
             return this->lidar_levels[LIDAR_DIR_FRONT] < LIDAR_LEVEL_CLOSE;
         else if(this->op_vel[0] < 0)
             return this->lidar_levels[LIDAR_DIR_BACK] < LIDAR_LEVEL_CLOSE;
         else
-            return true;
+            ret = true;
     }
     else{
-        return this->lidar_levels[LIDAR_DIR_FRONT] < LIDAR_LEVEL_CLOSE &&
+        ret = this->lidar_levels[LIDAR_DIR_FRONT] < LIDAR_LEVEL_CLOSE &&
             this->lidar_levels[LIDAR_DIR_BACK] < LIDAR_LEVEL_CLOSE; 
     }
+    if(!ret){
+        ROS_WARN("Near an obstacle");
+        this->base_driver.invoke(DEVICE_LED_R, {DEVICE_LED_FAST, 1});
+    }
+    return ret;
 }
 /* subsriber to track status */
 void Controller::status_tracking(const RobotStatus::ConstPtr& _msg)
 {
-    #if ROBOT_CONTROLLER_TEST
+    #ifdef ROBOT_CONTROLLER_TEST
         this->lidar_levels = vector<int16_t>(4, LIDAR_LEVEL_FAR);
         this->tracking_status = TRACKING_STATUS_NORMAL;
     #else
         if(_msg->is_activated){
             this->mode = _msg->now_mode;
             this->stage_bm |= _msg->now_mode;
+            switch (this->mode)
+            {
+                case MODE_TRAINING:
+                    this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_Y, DEVICE_LED_FAST, 1});
+                    break;
+                case MODE_WORKING:
+                    this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_G, DEVICE_LED_FAST, 1});
+                default:
+                    break;
+            }
             if(_msg->tracking_status_reply.is_activated){
                 this->tracking_status = _msg->tracking_status_reply.reply;
+                if(this->tracking_status != TRACKING_STATUS_NONE && this->tracking_status != TRACKING_STATUS_NORMAL){
+                    this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_Y, DEVICE_LED_FAST, 1});
+                }
             }
             else if(this->mode & MODE_WORKING){
                 ROS_WARN("Tracking_status_reply invalid");
@@ -239,7 +314,7 @@ void Controller::status_tracking(const RobotStatus::ConstPtr& _msg)
             }
         }
         else{
-            ROS_WARN("RobotStatus not activated");
+            ROS_ERROR("RobotStatus not activated");
         }
     #endif
 }
@@ -304,7 +379,6 @@ string Controller::dumps_graph()
         name += (to_string(subgraph_count));
         subgraph_count++;
         subgraph += "subgraph " + name + "{\n";
-        // subgraph += "label = " + name + ";\n";
         subgraph += "style = filled;\n";
         subgraph += "color = lightgrey;\n";
         subgraph += "node [style=filled,color=white];\n";
@@ -320,7 +394,7 @@ string Controller::dumps_graph()
             node_s += "\n";
             subgraph += node_s + "]\n";
         }
-        if(dist(it.aliases.begin()->pos, pos) < CLOSE_ENOUGH){
+        if(dist(it.aliases.begin()->pos, pos) < this->close_enough){
             subgraph += "Tircgo[pos = \"" + to_string(coor.x / max_x) + "," + to_string(coor.y / max_y) + "!\"\n";
             subgraph += "label = Tircgo\n";
             subgraph += "color = khaki4\n";

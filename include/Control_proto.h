@@ -88,19 +88,22 @@ using namespace std;
 #define JOYSTICKIO_TOPIC "joy" 
 
 /* Wifi */
- #define ROBOT_WIFI_TOPIC "wifi_topic"  // implement
- #define ROBOT_WIFI_SEND_SRV "robot_wifi_send" 
- #define ROBOT_WIFI_NODEOCP_OUTER "robot_wifi_nodeocp_outer"  // robot ask other robots
- #define ROBOT_WIFI_NODEOCP_INNER "robot_wifi_nodeocp_inner"  // robot answer other robots
- #define ROBOT_WIFI_NODECOST_OUTER "robot_wifi_nodecost_outer"  // robot ask other robots
- #define ROBOT_WIFI_NODECOST_INNER "robot_wifi_nodecost_inner"  // robot answer other robots
- #define ROBOT_WIFI_TASK_CONFIRM_INNER "robot_wifi_taskconfirm_inner" 
+#define ROBOT_WIFI_TOPIC "wifi_topic"  // implement
+#define ROBOT_WIFI_SEND_SRV "robot_wifi_send" 
+#define ROBOT_WIFI_NODEOCP_OUTER "robot_wifi_nodeocp_outer"  // robot ask other robots
+#define ROBOT_WIFI_NODEOCP_INNER "robot_wifi_nodeocp_inner"  // robot answer other robots
+#define ROBOT_WIFI_NODECOST_OUTER "robot_wifi_nodecost_outer"  // robot ask other robots
+#define ROBOT_WIFI_NODECOST_INNER "robot_wifi_nodecost_inner"  // robot answer other robots
+#define ROBOT_WIFI_TASK_CONFIRM_INNER "robot_wifi_taskconfirm_inner" 
+#define ROBOT_WIFI_ASKDATA_INNER "robot_wifi_askdata_inner" 
 
+/* controller-defined opcode */
 #define OPCODE_NONE '0' 
 #define OPCODE_RT_UP '1' 
 #define OPCODE_RT_DOWN '2' 
 #define OPCODE_ND_UP '3' 
 #define OPCODE_ND_DOWN '4' 
+#define OPCODE_DISPLAY '5'
 
 /* hardware control */
 #define OPCODE_SHUTDOWN 'E' 
@@ -131,7 +134,6 @@ using namespace std;
 
 /* Debug*/
 #define MONITOR_TOPIC "controller/monitor_topic" 
-#define ROBOT_ASKDATA_TOPIC "cost_srv" 
 
 namespace tircgo
 {
