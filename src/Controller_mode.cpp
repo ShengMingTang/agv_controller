@@ -38,11 +38,6 @@ void Controller::loopOnce()
     // loopOnce back
     this->runtime_vars_mgr(RUNTIME_VARS_RESET);
 }
-void Controller::log()
-{
-    ROS_INFO("Write log, not implemented yet");
-    this->is_ok = false;
-}
 void Controller::idle()
 {
     RobotInvoke srv;
@@ -215,11 +210,14 @@ void Controller::working()
             ROS_INFO("Work finished");
         }
 <<<<<<< HEAD
+<<<<<<< HEAD
         else{
             ROS_WARN("Lreply invalid");
         }
 =======
 >>>>>>> 085f1fd... modi macro, testing mode
+=======
+>>>>>>> 0a3536fe0781cca3c67f72b9f6cc85f9d27becfc
     }
     else if(!this->check_safety()){ // not safe, stop current work, call help
         auto srv = this->base_driver.invoke(OPCODE_WORK_FINISH, vector<int16_t>());

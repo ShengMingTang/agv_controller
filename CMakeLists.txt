@@ -14,6 +14,10 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   geometry_msgs
   sensor_msgs
+<<<<<<< HEAD
+=======
+  tircgo_uart
+>>>>>>> 0a3536fe0781cca3c67f72b9f6cc85f9d27becfc
 )
 
 ## System dependencies are found with CMake's conventions

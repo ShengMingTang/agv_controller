@@ -26,7 +26,6 @@ namespace tircgo
         const string frame_id;
 
         ros::ServiceClient invoke_clt; // send uart request
-        // ros::Publisher velCmd_pub; // drive AGV
     };
 }
 #endif
