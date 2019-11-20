@@ -65,7 +65,6 @@ void Controller::idle()
             srv = this->base_driver.invoke(OPCODE_CALIB, vector<int16_t>());
             if(this->base_driver.is_invoke_valid(srv)){
                 this->drive({0, 0});
-                ROS_WARN("Forced stop");
                 this->clear();
                 this->calibration();
             }
@@ -80,8 +79,7 @@ void Controller::idle()
                     // flush all data for route nd.training.route
                     this->graph.erase(this->rn_img[this->nd_training.route]);
                     this->rn_img[this->nd_training.route].clear();
-                    this->drive({0, 0}); // forced stop
-                    ROS_WARN("Forced stop");
+                    this->drive({0, 0});
 
                     #ifdef ROBOT_CONTROLLER_TEST
                         this->mode = MODE_TRAINING;
@@ -153,7 +151,7 @@ void Controller::training()
         case OPCODE_TRAIN_FINISH:
             if(this->rn_img[this->nd_training.route].size() >= TRAIN_NODE_MIN){
                 if(this->set_node()){
-                    ROS_WARN("Forced stop, one node automatically set");
+                    ROS_WARN("One node automatically set");
                 }
                 else{
                     ROS_ERROR("[Controller report] SetNode Failed when finishing training");
@@ -230,8 +228,7 @@ bool Controller::set_node()
         return false;
     }
     // body
-    if(this->drive({0, 0})){ // forced stop
-        ROS_WARN("Forced stop");
+    if(this->drive({0, 0})){
         auto srv = this->base_driver.invoke(OPCODE_SETNODE, {SETNODE_PASS_EXACT, this->pose_tracer.get_headway()});
         if(this->base_driver.is_invoke_valid(srv)){
             // graph routine
@@ -244,6 +241,7 @@ bool Controller::set_node()
                 for(auto it : vec){
                     if(dist(it->pos, nd.pos) < this->close_enough){
                         vptr = it;
+                        this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_3L_2S, 1});
                         break;
                     }
                 }
