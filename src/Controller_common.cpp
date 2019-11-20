@@ -31,13 +31,15 @@ void Controller::setup(int _argc, char **argv)
     for(int i = 1; i < _argc; i++){
         opt = argv[i];
         if(opt == "-h"){
-            ROS_INFO("[-h]: display this msg");
-            ROS_INFO("[-f]: int = 20, operating frequency");
-            ROS_INFO("[-d]: float = 0.4, drive timeout");
-            ROS_INFO("[-p]: int = 60, precision for merging nodes");
-            ROS_INFO("[-m]: int = 3, set control (using bitmap");
-            ROS_INFO("control = {wifi(2), safe(1)}");
-            this->mode |= MODE_NOTOK;
+            ROS_INFO("|-----------------------------------------------|");
+            ROS_INFO("| [-h]: display this msg                        |");
+            ROS_INFO("| [-f]: int = 20, operating frequency           |");
+            ROS_INFO("| [-d]: float = 0.4, drive timeout              |");
+            ROS_INFO("| [-p]: int = 60, precision for merging nodes   |");
+            ROS_INFO("| [-m]: int = 0, set control (using bitmap      |");
+            ROS_INFO("| control = {wifi(1)}                           |");
+            ROS_INFO("|-----------------------------------------------|");
+            this->stage_bm |= MODE_NOTOK;
         }
         else if(opt == "-f"){
             if(i + 1 < _argc){
@@ -56,7 +58,7 @@ void Controller::setup(int _argc, char **argv)
                 i++;
             }
             else{
-                ROS_ERROR("Invalid number of cmd line args");
+                ROS_INFO("Invalid number of cmd line args");
             }
         }
         else if(opt == "-p"){
@@ -83,22 +85,27 @@ void Controller::setup(int _argc, char **argv)
             ROS_INFO("Unknown option, neglected");
         }
     }
-    ROS_INFO("Controller Setup :");
-    ROS_WARN("Only objects in front/back could block, neglect side objects");
-    ROS_INFO("System parameter :");
-    // ROS_INFO("> Loop at frequency %f", this->loop_rate.cycleTime().toSec());
-    ROS_INFO("> Control mode : %d", this->control);
-    ROS_INFO("> Drive Refresh Time : %.1f", this->drive_timeout);
-    ROS_INFO("> Node merge max separation : %d", this->close_enough);
-    ROS_INFO("Setup Done");
-    ROS_INFO("Wait for UART");
-    RobotInvoke srv;
-    do{
-        srv = this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_3L_2S, 1});
-        this->loop_rate.sleep();
-        ros::spinOnce();
-    }while(ros::ok() && !(this->base_driver.is_invoke_valid(srv)));
-    ROS_INFO("UART is ready");
+    if(this->ok()){
+        ROS_INFO("============================================================");
+        ROS_INFO("Controller Setup :");
+        ROS_INFO("> Only objects in front/back could block, neglect side objects");
+        ROS_INFO("> System parameter :");
+        // ROS_INFO("> Loop at frequency %f", this->loop_rate.cycleTime().toSec());
+        ROS_INFO("> Control mode : %d", this->control);
+        ROS_INFO("> Drive Refresh Time : %.1f", this->drive_timeout);
+        ROS_INFO("> Node merge max separation : %d", this->close_enough);
+        ROS_INFO("============================================================");
+        ROS_INFO("Wait for UART");
+        RobotInvoke srv = this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_3L_2S, 1});
+        ros::Rate loop(1);
+        while(ros::ok() && this->ok() && !(this->base_driver.is_invoke_valid(srv))){
+            srv = this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_3L_2S, 1});
+            loop.sleep();
+            ros::spinOnce();
+        }
+        ROS_INFO("UART is ready");
+        ROS_INFO("Setup Done");
+    }
 }
 /*
     Drive related
@@ -205,9 +212,7 @@ bool Controller::drive(vector<int16_t> _vel)
                // don't send redundant 0 vel
         }
         else{
-            bool is_safe = true;
-            is_safe = this->check_safety();
-            if(is_safe){
+            if(this->check_safety()){
                 auto srv = this->base_driver.invoke(OPCODE_DRIVE, {_vel[0], _vel[1]});
                 if(this->base_driver.is_invoke_valid(srv)){
                     this->pose_tracer.set_vw(_vel);

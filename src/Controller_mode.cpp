@@ -45,19 +45,19 @@ void Controller::idle()
             if(this->stage_bm & MODE_TRAINING && !this->work_list.empty()){
                 // check if there were jobs to do
                 VertexType *next_vptr = this->work_list.front();
-                bool is_ocp = false;
                 
-                // if wifi is on, is_cop got a chance to be true, otherwise false
-                is_ocp = this->is_target_ocp(next_vptr);
-
                 // if none, enter working mode and claim.
-                if(!is_ocp){
+                if(!(this->is_target_ocp(next_vptr))){
                     RouteNode next_nd = *(next_vptr->aliases.begin());
                     vector<int16_t> work_args = {next_nd.route, next_nd.node};
                     srv = this->base_driver.invoke(OPCODE_WORK_BEGIN, work_args);
                     if(this->base_driver.is_invoke_valid(srv)){
                         this->ocp_vptr = this->work_list.front(); // claim
+                        ROS_INFO("Claim the target node is occupied");
                     }
+                }
+                else{
+                    ROS_INFO("Want to work but target is occupied");
                 }
             }
             break;
@@ -68,7 +68,6 @@ void Controller::idle()
                 this->clear();
                 this->calibration();
             }
-            ROS_INFO("bm = %d", this->stage_bm);
             break;
         case OPCODE_TRAIN_BEGIN:{
             if(this->stage_bm & MODE_CALIB){
@@ -85,17 +84,9 @@ void Controller::idle()
                         this->mode = MODE_TRAINING;
                         this->stage_bm |= MODE_TRAINING;
                     #endif
-
-                    if(this->set_node()){
-                        ROS_WARN("First node automatically");
-                    }
-                    else{
-                        ROS_ERROR("Set first node error");
-                    }
                 }
             }
             else{
-                ROS_INFO("bm = %d", this->stage_bm);
                 ROS_ERROR("Not Calibed but Want to enter Training");
             }
             break;
@@ -145,30 +136,30 @@ void Controller::training()
             break;
         case OPCODE_SETNODE:
             if(!this->set_node()){
-                ROS_ERROR("Direct SetNode failed (Controller report)");
+                ROS_ERROR("[Controller report] Direct SetNode failed");
             }
             break;
         case OPCODE_TRAIN_FINISH:
             if(this->rn_img[this->nd_training.route].size() >= TRAIN_NODE_MIN){
                 if(this->set_node()){
                     ROS_WARN("One node automatically set");
+                    srv = this->base_driver.invoke(OPCODE_TRAIN_FINISH, vector<int16_t>());
+                    if(this->base_driver.is_invoke_valid(srv)){
+                        #ifdef ROBOT_CONTROLLER_TEST
+                            this->mode = MODE_IDLE;
+                        #endif
+                        ROS_WARN("Once Trained, lock motor if not in tranining mode !");
+                        ROS_WARN("Note that this piece of info only appears once at the end of every training");
+                        this->nd_training.route = (this->nd_training.route + 1) % TRAIN_ROUTE_MAX;
+                        this->nd_training.node = 0;
+                        // test
+                        auto s = this->dumps_graph();
+                        ROS_WARN("\n%s", s.c_str());
+                    }
                 }
                 else{
                     ROS_ERROR("[Controller report] SetNode Failed when finishing training");
-                    ROS_ERROR("[Controller report] SetNode failed but keep doing Training-Finish");
-                }
-                srv = this->base_driver.invoke(OPCODE_TRAIN_FINISH, vector<int16_t>());
-                if(this->base_driver.is_invoke_valid(srv)){
-                    #ifdef ROBOT_CONTROLLER_TEST
-                        this->mode = MODE_IDLE;
-                    #endif
-                    ROS_WARN("Once Trained, lock motor if not in tranining mode !");
-                    ROS_WARN("Note that this piece of info only appears once at the end of every training");
-                    this->nd_training.route = (this->nd_training.route + 1) % TRAIN_ROUTE_MAX;
-                    this->nd_training.node = 0;
-                    // test
-                    auto s = this->dumps_graph();
-                    ROS_WARN("\n%s", s.c_str());
+                    ROS_ERROR("[Controller report] Train finish operation rejected");
                 }
             }
             else{
@@ -201,11 +192,12 @@ void Controller::working()
     else if(!this->check_safety()){ // not safe, stop current work, call help
         auto srv = this->base_driver.invoke(OPCODE_WORK_FINISH, vector<int16_t>());
         if(this->base_driver.is_invoke_valid(srv)){
-            auto sig_srv = this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_2S, 1});
+            auto sig_srv = this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_3L_2S, 1});
+            ROS_INFO("Stop working since an unsafe condition");
         }
     }
     else{
-        ROS_INFO("I'm working happily!");
+        ROS_INFO("Working happily!");
     }
 }
 bool Controller::set_node()

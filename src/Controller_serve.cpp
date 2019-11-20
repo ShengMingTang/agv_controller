@@ -49,10 +49,10 @@ bool Controller::is_target_ocp(const VertexType *vptr)
     srv.request.q_rn = *(vptr->aliases.begin());
     if(this->control & CONTROL_WIFI){
         if(!this->nodeocp_clt.call(srv)){
-            ROS_ERROR("<NodeOcp Srv-Err>");
+            ROS_ERROR("| ----> Wifi Err");
             return false;
         }
-        return !(srv.response.error_code == WIFI_ERR_NONE && srv.response.is_ocp);
+        return srv.response.error_code == WIFI_ERR_NONE && srv.response.is_ocp;
     }
     else{
         return false;

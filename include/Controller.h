@@ -46,9 +46,7 @@
 #define DRIVE_VEL_LINEAR 30
 #define DRIVE_VEL_ANGULAR 5
 
-#define CONTROL_SAFE 1
-#define CONTROL_WIFI 2
-// #define CONTROL_TEST 4
+#define CONTROL_WIFI 1
 
 using namespace std;
 using namespace tircgo;
@@ -102,7 +100,7 @@ namespace tircgo
         /* build time */
         ros::NodeHandle n;
         const string frame_id;
-        int control = CONTROL_WIFI | CONTROL_SAFE;
+        int control = 0;
         ros::Rate loop_rate = ros::Rate(20);
         float drive_timeout = 0.4;
         int close_enough = 60;
