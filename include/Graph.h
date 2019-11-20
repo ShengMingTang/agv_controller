@@ -106,8 +106,17 @@ void Graph<V, E>::Floyd_Warshall()
         this->adjMat[it.first] = row;
     }
     for(auto it : this->edges){
+        map<V*, int> count;
         for(auto it2 : it.second){
-            this->adjMat[it.first][it2.dst] = {it2.w, it.first};
+            if(count.find(it2.dst) == count.end()){
+                this->adjMat[it.first][it2.dst] = {it2.w, it.first};
+                count[it2.dst] = 1;
+            }
+            else{
+                double w_sum = this->adjMat[it.first][it2.dst].first * count[it2.dst];
+                count[it2.dst]++;
+                this->adjMat[it.first][it2.dst] = { (w_sum + it2.w) / count[it2.dst], it.first};
+            }
         }
         this->adjMat[it.first][it.first] = {0, nullptr};
     }
