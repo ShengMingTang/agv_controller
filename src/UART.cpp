@@ -47,7 +47,7 @@ RobotInvoke UART::invoke(const int16_t _op, const std::vector<int16_t> _args)
 }
 bool UART::is_invoke_valid(const RobotInvoke  &_srv)
 {
-    bool ret = _srv.response.is_legal_op && _srv.response.is_arg_valid && _srv.response.is_activated;
+    bool ret = _srv.response.is_legal_op && _srv.response.is_arg_valid && _srv.response.is_activated && _srv.response.error_code == ERRCODE_OK;
     if(!ret){
         stringstream ss;
         ss << "Op = " << _srv.request.operation << ", ";
@@ -64,19 +64,11 @@ bool UART::is_invoke_valid(const RobotInvoke  &_srv)
             ret = false;
         }
         ss << "Err: " << _srv.response.error_code;
-            ROS_ERROR(ss.str().c_str());
+            ROS_ERROR("%s", ss.str().c_str());
     }
     else{
         switch (_srv.request.operation)
         {
-            // normal
-            case OPCODE_RT_UP:
-            case OPCODE_RT_DOWN:
-            case OPCODE_ND_UP:
-            case OPCODE_ND_DOWN:
-            case OPCODE_DRIVE:
-                this->invoke(OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_2S, 1});
-                break;
             // priviledged
             case OPCODE_SHUTDOWN:
             case OPCODE_CALIB:
