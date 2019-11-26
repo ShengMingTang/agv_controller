@@ -37,7 +37,7 @@ void Controller::setup(int _argc, char **argv)
             ROS_INFO("| [-d]: float = 0.4, drive timeout              |");
             ROS_INFO("| [-p]: int = 60, precision for merging nodes   |");
             ROS_INFO("| [-m]: int = 0, set control (using bitmap      |");
-            ROS_INFO("| control = {wifi(1)}                           |");
+            ROS_INFO("| control = {wifi(0/1)}                         |");
             ROS_INFO("|-----------------------------------------------|");
             this->stage_bm |= MODE_NOTOK;
         }
@@ -278,7 +278,7 @@ bool Controller::check_safety()
     }
     if(!ret){
         ROS_WARN("Near an obstacle");
-        this->base_driver.invoke(DEVICE_LED_R, {DEVICE_LED_FAST, 1});
+        this->base_driver.invoke(DEVICE_LED_R, {DEVICE_LED_ON, 1});
     }
     return ret;
 }
@@ -295,17 +295,22 @@ void Controller::status_tracking(const RobotStatus::ConstPtr& _msg)
             switch (this->mode)
             {
                 case MODE_TRAINING:
-                    this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_Y, DEVICE_LED_FAST, 1});
+                    this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_G, DEVICE_LED_OFF, 1});
+                    this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_Y, DEVICE_LED_ON, 1});
                     break;
                 case MODE_WORKING:
-                    this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_G, DEVICE_LED_FAST, 1});
+                    this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_Y, DEVICE_LED_OFF, 1});
+                    this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_G, DEVICE_LED_ON, 1});
                 default:
                     break;
             }
             if(_msg->tracking_status_reply.is_activated){
                 this->tracking_status = _msg->tracking_status_reply.reply;
                 if(this->tracking_status != TRACKING_STATUS_NONE && this->tracking_status != TRACKING_STATUS_NORMAL){
-                    this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_Y, DEVICE_LED_FAST, 1});
+                    this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_Y, DEVICE_LED_ON, 1});
+                }
+                else{
+                    this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_Y, DEVICE_LED_OFF, 1});
                 }
             }
             else if(this->mode & MODE_WORKING){

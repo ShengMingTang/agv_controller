@@ -35,6 +35,8 @@ using namespace std;
 #define DEVICE_BEEPER_2S 3
 #define DEVICE_BEEPER_L 4
 
+#define DEVICE_LED_ON 0
+#define DEVICE_LED_OFF 1
 #define DEVICE_LED_SLOW 2
 #define DEVICE_LED_MEDI 3
 #define DEVICE_LED_FAST 4
@@ -59,6 +61,9 @@ using namespace std;
 #define ERRCODE_POINTS_TOO_CLOSE -3
 #define ERRCODE_LOST -4
 #define ERRCODE_INVAILD_OPCODE -5
+/* uart related topic */
+#define ROBOTINVOKE_TOPIC "robot_invoke"
+#define ROBOTSTATUS_TOPIC "robot_status"
 
 /* Joystick */
 #define JOY_CD 0.05
@@ -82,20 +87,8 @@ using namespace std;
 #define JOYAXES_STICKRIGHT_UD 3
 #define JOYAXES_CROSS_LR 4
 #define JOYAXES_CROSS_UD 5
-
-#define ROBOTINVOKE_TOPIC "robot_invoke" 
-#define ROBOTSTATUS_TOPIC "robot_status" 
+/* joystick related topic */
 #define JOYSTICKIO_TOPIC "joy" 
-
-/* Wifi */
-#define ROBOT_WIFI_TOPIC "wifi_topic"  // implement
-#define ROBOT_WIFI_SEND_SRV "robot_wifi_send" 
-#define ROBOT_WIFI_NODEOCP_OUTER "robot_wifi_nodeocp_outer"  // robot ask other robots
-#define ROBOT_WIFI_NODEOCP_INNER "robot_wifi_nodeocp_inner"  // robot answer other robots
-#define ROBOT_WIFI_NODECOST_OUTER "robot_wifi_nodecost_outer"  // robot ask other robots
-#define ROBOT_WIFI_NODECOST_INNER "robot_wifi_nodecost_inner"  // robot answer other robots
-#define ROBOT_WIFI_TASK_CONFIRM_INNER "robot_wifi_taskconfirm_inner" 
-#define ROBOT_WIFI_ASKDATA_INNER "robot_wifi_askdata_inner" 
 
 /* controller-defined opcode */
 #define OPCODE_NONE '0' 
@@ -116,6 +109,16 @@ using namespace std;
 #define OPCODE_WORK_BEGIN 'L' 
 #define OPCODE_WORK_FINISH 'M' 
 
+/* Wifi */
+#define ROBOT_WIFI_TOPIC "wifi_topic"  // implement
+#define ROBOT_WIFI_SEND_SRV "robot_wifi_send" 
+#define ROBOT_WIFI_NODEOCP_OUTER "robot_wifi_nodeocp_outer"  // robot ask other robots
+#define ROBOT_WIFI_NODEOCP_INNER "robot_wifi_nodeocp_inner"  // robot answer other robots
+#define ROBOT_WIFI_NODECOST_OUTER "robot_wifi_nodecost_outer"  // robot ask other robots
+#define ROBOT_WIFI_NODECOST_INNER "robot_wifi_nodecost_inner"  // robot answer other robots
+#define ROBOT_WIFI_TASK_CONFIRM_INNER "robot_wifi_taskconfirm_inner" 
+#define ROBOT_WIFI_ASKDATA_INNER "robot_wifi_askdata_inner" 
+
 /* wifi purpose */
 #define WIFI_PUR_WS "W"
 #define WIFI_PUR_ROBOT "R"
@@ -123,16 +126,16 @@ using namespace std;
 #define WIFI_PUR_NODEOCP "N"
 #define WIFI_PUR_COST "C"
 /* wifi error code */
-#define WIFI_ERR_NONE "0"
-#define WIFI_ERR_TIMEOUT "T"
-#define WIFI_ERR_WS "W"
-#define WIFI_ERR_ROBOT "R"
-#define WIFI_ERR_ANS "A"
-#define WIFI_ERR_NODE "N"
-#define WIFI_ERR_COST "C"
-#define WIFI_ERR_NETWORK "w"
+#define WIFI_ERRCODE_NONE "0"
+#define WIFI_ERRCODE_TIMEOUT "T"
+#define WIFI_ERRCODE_WS "W"
+#define WIFI_ERRCODE_ROBOT "R"
+#define WIFI_ERRCODE_ANS "A"
+#define WIFI_ERRCODE_NODE "N"
+#define WIFI_ERRCODE_COST "C"
+#define WIFI_ERRCODE_NETWORK "w"
 
-/* Debug*/
+/* basic info publish topic (in string) */
 #define MONITOR_TOPIC "controller/monitor_topic" 
 
 namespace tircgo
