@@ -4,13 +4,13 @@
 # Add action to provide programming interface
 
 # routine:
-sudo chmod a+rw /dev/input/js0
-sudo chmod 666 /dev/ttyUSB0
-source tircgo/devel/setup.bash
+## sudo chmod a+rw /dev/input/js0
+## sudo chmod 666 /dev/ttyUSB0
+## source tircgo/devel/setup.bash
 
 # nodes available
-tircgo_controller/ticgo_c... for controller node
-ticgo_controller/tircgo_s... for schduler node
+## tircgo_controller/ticgo_c... for controller node
+## ticgo_controller/tircgo_s... for schduler node
 
 ```c++
 // template for scheduler.cpp
