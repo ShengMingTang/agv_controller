@@ -2,15 +2,15 @@
 
 # goal
 string act # specify the main core of this action
-float64[] args # args to address more about this action
+int32[] args # args to address more about this action
 ---
 # result
 string res
-float64[] args
+int32[] args
 ---
 # feedback
 string feedback
-float64[] args
+int32[] args
 
 # act
 # "ready" : tell scheduler it's ready to take jobs

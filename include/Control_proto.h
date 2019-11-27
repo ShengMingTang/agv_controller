@@ -97,6 +97,8 @@ using namespace std;
 #define OPCODE_ND_UP '3' 
 #define OPCODE_ND_DOWN '4' 
 #define OPCODE_DISPLAY '5'
+#define OPCODE_AUTO_BEGIN '6'
+#define OPCODE_AUTO_FINISH '7'
 
 /* hardware control */
 #define OPCODE_SHUTDOWN 'E' 

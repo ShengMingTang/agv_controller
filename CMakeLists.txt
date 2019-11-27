@@ -219,7 +219,7 @@ add_executable(tircgo_controller_node
   src/tircgo_common.cpp
 )
 target_compile_definitions(tircgo_controller_node PUBLIC 
-  # ROBOT_CONTROLLER_TEST # 0 for real application, 1 for testing
+  # ROBOT_CONTROLLER_TEST # comment this line for real application
 )
 target_link_libraries(tircgo_controller_node ${catkin_LIBRARIES})
 add_dependencies(tircgo_controller_node tircgo_controller_gencpp ${catkin_EXPORTED_TARGETS})

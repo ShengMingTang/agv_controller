@@ -16,9 +16,10 @@ base_driver{UART(_id)}
 
 ,askdata_srv{this->n.advertiseService(ROBOT_WIFI_ASKDATA_INNER, &Controller::askdata_serve, this)}
 
+,sch_srv(this->n, ROBOT_SCHEDULER_CONTROLLER, boost::bind(&Controller::execute_schedule, this, _1), false)
 {
     this->nd_training.route = this->nd_training.node = 0;
-    this->ocp_vptr = nullptr, this->target_vptr = nullptr;
+    this->ocp_vptr = nullptr;
     ROS_INFO("Controller constructed");
 }
 Controller::~Controller()
@@ -119,8 +120,15 @@ int16_t Controller::decode_opcode()
     if(this->op_ptr){
         vector<float> axes = this->op_ptr->axes;
         vector<int32_t> buttons = this->op_ptr->buttons;
-        if(buttons[JOYBUTTON_BACK])
+        if(buttons[JOYBUTTON_BACK]){
             return OPCODE_SHUTDOWN;
+        }
+        else if(!(this->stage_bm & MODE_AUTO) && buttons[JOYBUTTON_START]){
+            return OPCODE_AUTO_BEGIN;
+        }
+        else if(this->stage_bm & MODE_AUTO && buttons[JOYBUTTON_START]){
+            return OPCODE_AUTO_FINISH;
+        }
         // decode mode dependent instructions
         switch(this->mode){
             case MODE_IDLE:
@@ -198,11 +206,12 @@ vector<int16_t> Controller::decode_drive()
 */
 bool Controller::drive(vector<int16_t> _vel)
 {
-    this->op_vel = _vel;
 
     // trained but not in training
-    if((this->stage_bm & MODE_TRAINING) && this->mode != MODE_TRAINING)
-        return false;
+    if((this->stage_bm & MODE_TRAINING) && (this->mode != MODE_TRAINING || this->nd_training.node == -1)){
+        _vel = {0, 0};
+    }
+    this->op_vel = _vel;
 
     // legal condition to drive
     double t = (ros::Time::now() - this->pose_tracer.get_starttime()).toSec();
@@ -285,48 +294,44 @@ bool Controller::check_safety()
 /* subsriber to track status */
 void Controller::status_tracking(const RobotStatus::ConstPtr& _msg)
 {
-    #ifdef ROBOT_CONTROLLER_TEST
-        this->lidar_levels = vector<int16_t>(4, LIDAR_LEVEL_FAR);
-        this->tracking_status = TRACKING_STATUS_NORMAL;
-    #else
-        if(_msg->is_activated){
-            this->mode = _msg->now_mode;
-            this->stage_bm |= _msg->now_mode;
-            switch (this->mode)
-            {
-                case MODE_TRAINING:
-                    this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_G, DEVICE_LED_OFF, 1});
-                    this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_Y, DEVICE_LED_ON, 1});
-                    break;
-                case MODE_WORKING:
-                    this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_Y, DEVICE_LED_OFF, 1});
-                    this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_G, DEVICE_LED_ON, 1});
-                default:
-                    break;
-            }
-            if(_msg->tracking_status_reply.is_activated){
-                this->tracking_status = _msg->tracking_status_reply.reply;
-                if(this->tracking_status != TRACKING_STATUS_NONE && this->tracking_status != TRACKING_STATUS_NORMAL){
-                    this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_Y, DEVICE_LED_ON, 1});
-                }
-                else{
-                    this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_Y, DEVICE_LED_OFF, 1});
-                }
-            }
-            else if(this->mode & MODE_WORKING){
-                ROS_WARN("Tracking_status_reply invalid");
-            }
-            if(_msg->lidar_level_reply.is_activated){
-                this->lidar_levels = _msg->lidar_level_reply.level_reply;
+    if(_msg->is_activated){
+        this->mode = _msg->now_mode;
+        this->stage_bm |= _msg->now_mode;
+        switch (this->mode)
+        {
+            case MODE_TRAINING:
+                this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_G, DEVICE_LED_OFF, 1});
+                this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_Y, DEVICE_LED_ON, 1});
+                break;
+            case MODE_WORKING:
+                this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_Y, DEVICE_LED_OFF, 1});
+                this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_G, DEVICE_LED_ON, 1});
+            default:
+                break;
+        }
+        if(_msg->tracking_status_reply.is_activated){
+            this->tracking_status = _msg->tracking_status_reply.reply;
+            if(this->tracking_status != TRACKING_STATUS_NONE && this->tracking_status != TRACKING_STATUS_NORMAL){
+                this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_Y, DEVICE_LED_ON, 1});
+                ROS_INFO("Tracking Lost");
             }
             else{
-                ROS_WARN("Lidar_level_reply invalid");
+                this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_Y, DEVICE_LED_OFF, 1});
             }
         }
-        else{
-            ROS_ERROR("RobotStatus not activated");
+        else if(this->mode & MODE_WORKING){
+            ROS_WARN("Tracking_status_reply invalid");
         }
-    #endif
+        if(_msg->lidar_level_reply.is_activated){
+            this->lidar_levels = _msg->lidar_level_reply.level_reply;
+        }
+        else{
+            ROS_WARN("Lidar_level_reply invalid");
+        }
+    }
+    else{
+        ROS_ERROR("RobotStatus not activated");
+    }
 }
 
 /* interface for buffering joystick signal */
@@ -450,9 +455,26 @@ bool Controller::priviledged_instr()
         case OPCODE_SHUTDOWN:
             this->shutdown();
             break;
+        case OPCODE_AUTO_BEGIN:
+            this->stage_bm |= MODE_AUTO;
+            this->sch_srv.start();
+            ROS_WARN("Start auto mode");
+            break;
+        case OPCODE_AUTO_FINISH:
+            this->stage_bm &= (~MODE_AUTO);
+            // this->sch_srv.shutdown();
+            ROS_WARN("Finish auto mode, script has no effect now");
         default:
             ret = false;
             break;
     }
     return ret;
+}
+/* return if the _route, _node pair is valid in the current robot */
+bool Controller::is_target_valid(int _route, int _node)
+{
+    if(_route >= 0 && _route < this->rn_img.size()){
+        return _node < this->rn_img[_route].size();
+    }
+    return false;
 }

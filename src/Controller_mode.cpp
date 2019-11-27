@@ -9,7 +9,7 @@ void Controller::loopOnce()
     this->runtime_vars_mgr(RUNTIME_VARS_SET);
 
     // loopOnce body (User-Custom space)
-    if(!this->priviledged_instr()){
+    if(!this->priviledged_instr() && !(this->stage_bm & MODE_AUTO)){
         switch(this->mode){
             case MODE_IDLE:
                 this->idle();
@@ -20,6 +20,7 @@ void Controller::loopOnce()
                 break;
             case MODE_CALIB:
                 this->calibration();
+                break;
             case MODE_TRAINING:
                 this->training();
                 break;
@@ -53,9 +54,13 @@ void Controller::idle()
                     srv = this->base_driver.invoke(OPCODE_WORK_BEGIN, work_args);
                     if(this->base_driver.is_invoke_valid(srv)){
                         this->ocp_vptr = this->work_list.front(); // claim
-                        ROS_INFO("Claim the target node is occupied by the current robot");
-                        ROS_INFO("Enter working mode");
+                        // ROS_INFO("Claim the target node is occupied by the current robot");
+                        // ROS_INFO("Enter working mode");
                     }
+                    #ifdef ROBOT_CONTROLLER_TEST
+                        this->mode = MODE_WORKING;
+                        this->stage_bm |= MODE_WORKING;
+                    #endif
                 }
                 else{
                     ROS_INFO("Want to work but target is occupied, waiting");
@@ -73,7 +78,7 @@ void Controller::idle()
         case OPCODE_TRAIN_BEGIN:{
             if(this->stage_bm & MODE_CALIB){
                 vector<int16_t> train_args = {this->nd_training.route};
-                this->nd_training.node = 0;
+                this->nd_training.node = -1;
                 srv = this->base_driver.invoke(OPCODE_TRAIN_BEGIN, train_args);
                 if(this->base_driver.is_invoke_valid(srv)){
                     // flush all data for route nd.training.route
@@ -98,7 +103,7 @@ void Controller::idle()
         /* work manually, just push node here*/
         case OPCODE_WORK_BEGIN:
             if(this->stage_bm & MODE_TRAINING){
-                if(this->nd_target.node < this->rn_img[this->nd_target.route].size()){
+                if(this->is_target_valid(this->nd_target.route, this->nd_target.node)){
                     this->work_list.clear();
                     auto path = this->graph.shortest_path(this->ocp_vptr, this->rn_img[this->nd_target.route][this->nd_target.node]).second;
                     this->work_list.insert(this->work_list.end(), path.begin(), path.end());
@@ -113,6 +118,9 @@ void Controller::idle()
                     ROS_ERROR("Target out of range, plz reset");
                 }
             }
+            break;
+        case OPCODE_AUTO_BEGIN:
+        case OPCODE_AUTO_FINISH:
             break;
         default:
             ROS_WARN("In Idle mode, %c is not allowed", (char)this->op);
@@ -153,7 +161,7 @@ void Controller::training()
                     ROS_WARN("Once Trained, lock motor if not in tranining mode !");
                     ROS_WARN("Note that this piece of info only appears once at the end of every training");
                     this->nd_training.route = (this->nd_training.route + 1) % TRAIN_ROUTE_MAX;
-                    this->nd_training.node = 0;
+                    this->nd_training.node = -1;
 
                     auto s = this->dumps_graph();
                     ROS_WARN("\n%s", s.c_str());
@@ -177,17 +185,29 @@ void Controller::training()
     Polling tracking status, if emergency occur then forced exiting working
     All wokring-related data will be kept.
     Working will resume as soon as emergency is removed
+
+    return true if working is finished, else false
 */
-void Controller::working()
+bool Controller::working()
 {
+    #ifdef ROBOT_CONTROLLER_TEST
+        ros::Rate r(1);
+        r.sleep();
+        this->tracking_status = TRACKING_STATUS_ARRIVAL;
+    #endif
     if(this->tracking_status == TRACKING_STATUS_ARRIVAL){
         auto srv = this->base_driver.invoke(OPCODE_WORK_FINISH, vector<int16_t>());
         if(this->base_driver.is_invoke_valid(srv)){
-            this->work_list.pop_front();
-            // claim that we have given up that occupied node
             this->ocp_vptr = this->work_list.front();
-            auto coor = this->target_vptr->aliases.begin();
-            this->pose_tracer.set_coor(coor->pos.x, coor->pos.y);
+            this->pose_tracer.set_coor(this->ocp_vptr->pos.x, this->ocp_vptr->pos.y);
+            this->work_list.pop_front();
+
+            #ifdef ROBOT_CONTROLLER_TEST
+                this->tracking_status = TRACKING_STATUS_NORMAL;
+                this->mode = MODE_IDLE;
+            #endif
+
+            return true;
         }
     }
     else if(!this->check_safety()){ // not safe, stop current work, call help
@@ -197,9 +217,7 @@ void Controller::working()
             ROS_INFO("Stop working due to an unsafe condition");
         }
     }
-    else{
-        ROS_INFO("Working happily!");
-    }
+    return false;
 }
 bool Controller::set_node()
 {
@@ -217,7 +235,7 @@ bool Controller::set_node()
     }
     // else no last node
     if(last_ptr && dist(last_ptr->aliases.begin()->pos, nd.pos) < this->close_enough){
-        ROS_INFO("[Controller] Set points < CLOSE_ENOUGH, rejected");
+        ROS_INFO("Set points < CLOSE_ENOUGH, rejected");
         return false;
     }
     // body
@@ -226,6 +244,12 @@ bool Controller::set_node()
         if(this->base_driver.is_invoke_valid(srv)){
             // graph routine
             nd.route = this->nd_training.route, nd.node = srv.response.feedback[0] - 1;
+            
+            // quick return 
+            if(nd.node != this->rn_img[nd.route].size()){
+                ROS_ERROR("UART-returned node not continuous, fatal error, setnode ignored");
+                return false;
+            }
             // update training parameters
             this->nd_training.node = nd.node;
             // check if there is a close vertex so that they can merge
@@ -266,7 +290,7 @@ bool Controller::set_node()
             }
             // done
             this->ocp_vptr = vptr;
-            ROS_INFO("Node #R%d, #N%d @ (%f,%f) set successfully", nd.route, nd.node, nd.pos.x, nd.pos.y);
+            ROS_INFO("Node #R%d, #N%d @ (%f,%f) set", nd.route, nd.node, nd.pos.x, nd.pos.y);
             return true;
         }
         return false;

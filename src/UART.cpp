@@ -1,7 +1,7 @@
 #include "UART.h"
 
-#if ROBOT_CONTROLLER_TEST
-    static int16_t node_ct;
+#ifdef ROBOT_CONTROLLER_TEST
+    static int16_t node_ct = 1;
 #endif
 
 UART::UART(const string& _parent_frame_id)
@@ -21,19 +21,19 @@ RobotInvoke UART::invoke(const int16_t _op, const std::vector<int16_t> _args)
     srv.request.header.frame_id = this->frame_id;
     srv.request.operation = (char)_op;
     srv.request.argument = _args;
-    #if ROBOT_CONTROLLER_TEST
+    #ifdef ROBOT_CONTROLLER_TEST
         srv.response.is_legal_op = srv.response.is_arg_valid = srv.response.is_activated = true;
         srv.response.error_code = ERRCODE_OK;
         switch (_op)
         {
         case OPCODE_SIGNAL:
-            ROS_INFO("[UART] signal recerived");
+            // ROS_INFO("[UART] signal recerived");
             break;
         case OPCODE_SETNODE:
             srv.response.feedback = vector<int16_t>(1, node_ct++);
             break;
         case OPCODE_TRAIN_BEGIN:
-            node_ct = 0;
+            node_ct = 1;
             break;
         default:
             break;
@@ -48,20 +48,20 @@ RobotInvoke UART::invoke(const int16_t _op, const std::vector<int16_t> _args)
 bool UART::is_invoke_valid(const RobotInvoke  &_srv)
 {
     bool ret = _srv.response.is_legal_op && _srv.response.is_arg_valid && _srv.response.is_activated && _srv.response.error_code == ERRCODE_OK;
+    #ifdef ROBOT_CONTROLLER_TEST
+        ret = true;
+    #endif
     if(!ret){
         stringstream ss;
         ss << "Op = " << _srv.request.operation << ", ";
         if(!_srv.response.is_legal_op){
             ss << "Op ill. , ";
-            ret = false;
         }
         if(!_srv.response.is_arg_valid){
             ss << "Args ill. , ";
-            ret = false;
         }
         else if(!_srv.response.is_activated){
             ss << "UART---X---> AGV fail, ";
-            ret = false;
         }
         ss << "Err: " << _srv.response.error_code;
             ROS_ERROR("%s", ss.str().c_str());
@@ -88,18 +88,19 @@ bool UART::is_invoke_valid(const RobotInvoke  &_srv)
                 ROS_INFO("Head for R%dN%d", _srv.request.argument[0], _srv.request.argument[1]);
                 break;
             case OPCODE_WORK_FINISH:
-                ROS_INFO("Work finished");
+                ROS_INFO("Work finished\n");
+                break;
             case OPCODE_CALIB:
-               ROS_INFO("End Calib");
-               break; 
+               ROS_INFO("End Calib\n");
+                break;
             case OPCODE_TRAIN_BEGIN:
                 ROS_INFO("Begin Training @ R%d", _srv.request.argument[0]);
                 break;
             case OPCODE_TRAIN_FINISH:
-                ROS_INFO("Finish training");
+                ROS_INFO("Finish training\n");
                 break;
             case OPCODE_SETNODE:
-                ROS_INFO("Node #%d set successfully", _srv.response.feedback[0]);
+                // ROS_INFO("Node #%d set successfully", _srv.response.feedback[0]);
                 break;
             default:
                 break;

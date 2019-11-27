@@ -33,15 +33,13 @@ using namespace tircgo_controller;
 /* macro functions */
 #define Wait \
 {\
-    ac_.sendGoal(goal_);\
-    finished_before_timeout_ = ac_.waitForResult();\
-    if (finished_before_timeout_)\
-    {\
-        actionlib::SimpleClientGoalState state = ac_.getState();\
-        ROS_INFO("Action finished: %s",state.toString().c_str());\
-    }\
-    else\
-        ROS_INFO("Action did not finish before the time out.");\
+    ros::Rate r(1);\
+    do{\
+        ac_.waitForServer();\
+        ac_.sendGoal(goal_);\
+        ac_.waitForResult();\
+        r.sleep();\
+    }while(ros::ok() && ac_.getState() != actionlib::SimpleClientGoalState::SUCCEEDED);\
 }
 #define Go(r, n) \
 {\
@@ -52,7 +50,7 @@ using namespace tircgo_controller;
 #define Delay(n) \
 {\
     goal_.act = "delay", goal_.args = {n};\
-    ROS_INFO("Delay for %f sec(s)", n);\
+    ROS_INFO("Delay for %f sec(s)", (double)n / 1000);\
     Wait;\
 }
 #define Drive(linear, angular) \

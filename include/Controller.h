@@ -11,6 +11,7 @@
 #include <cmath>
 #include <list>
 #include <map>
+#include <climits>
 
 #include "Control_proto.h"
 #include "Joystick.h"
@@ -28,6 +29,9 @@
 #include "tircgo_msgs/Ask_Data.h"
 #include "tircgo_msgs/CtrlData.h"
 #include "tircgo_msgs/RouteNode.h"
+
+#include <actionlib/server/simple_action_server.h>
+#include "tircgo_controller/scheduleAction.h"
 
 #define RUNTIME_VARS_SET 1
 #define RUNTIME_VARS_RESET 0
@@ -73,15 +77,15 @@ namespace tircgo
         string dumps_graph();
     private:
         /* Mode related */
-        void sleep();
         void idle();
         void calibration();
         void training();
-        void working();
+        bool working();
         /* API */
         // custom working list
         /* return true if there is any kerenl instrcution*/
         bool is_target_ocp(const VertexType *vptr);
+        bool is_target_valid(int _route, int _node);
         bool priviledged_instr();
         bool shutdown();
         bool set_node();
@@ -104,7 +108,7 @@ namespace tircgo
         int control = 0;
         ros::Rate loop_rate = ros::Rate(20);
         float drive_timeout = 0.4;
-        int close_enough = 60;
+        int close_enough = 30;
         
         /* UART related */
         UART base_driver;
@@ -148,13 +152,18 @@ namespace tircgo
         PrimitiveType nd_training;
         // working related
         PrimitiveType nd_target; // for manually set target
-        VertexType *target_vptr;
         VertexType *ocp_vptr;
         
         list<VertexType*> work_list;
         
         // strictly tracked
         int16_t tracking_status = TRACKING_STATUS_NONE;
+
+        // auto
+        void execute_schedule(const tircgo_controller::scheduleGoalConstPtr &_goal);
+        actionlib::SimpleActionServer<tircgo_controller::scheduleAction> sch_srv;
+        tircgo_controller::scheduleFeedback sch_feedback;
+        tircgo_controller::scheduleResult sch_res;
     };
 }
 #endif
