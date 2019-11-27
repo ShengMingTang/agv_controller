@@ -3,7 +3,6 @@ project(tircgo_controller)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++11)
-
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
@@ -16,7 +15,7 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   tircgo_uart
 )
-
+find_package(catkin REQUIRED genmsg actionlib_msgs actionlib)
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 
@@ -63,11 +62,11 @@ find_package(catkin REQUIRED COMPONENTS
 # )
 
 ## Generate actions in the 'action' folder
-# add_action_files(
-#   FILES
-#   Action1.action
-#   Action2.action
-# )
+add_action_files(
+  DIRECTORY action
+  FILES
+  schedule.action
+)
 
 ## Generate added messages and services with any dependencies listed here
 generate_messages(
@@ -75,6 +74,7 @@ generate_messages(
   std_msgs
   geometry_msgs
   sensor_msgs
+  actionlib_msgs
 )
 
 ################################################
@@ -109,7 +109,7 @@ generate_messages(
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES agv_controller
- CATKIN_DEPENDS message_runtime roscpp rospy std_msgs
+ CATKIN_DEPENDS message_runtime roscpp rospy std_msgs actionlib_msgs
 #  DEPENDS system_lib
 )
 
@@ -223,3 +223,14 @@ target_compile_definitions(tircgo_controller_node PUBLIC
 )
 target_link_libraries(tircgo_controller_node ${catkin_LIBRARIES})
 add_dependencies(tircgo_controller_node tircgo_controller_gencpp ${catkin_EXPORTED_TARGETS})
+
+add_executable(tircgo_scheduler_node src/scheduler.cpp)
+target_link_libraries( 
+  tircgo_scheduler_node
+  ${catkin_LIBRARIES}
+)
+
+add_dependencies(
+  tircgo_scheduler_node
+  ${tircgo_controller_EXPORTED_TARGETS}
+)

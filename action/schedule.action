@@ -1,0 +1,27 @@
+# tircgo1107
+
+# goal
+string act # specify the main core of this action
+float64[] args # args to address more about this action
+---
+# result
+string res
+float64[] args
+---
+# feedback
+string feedback
+float64[] args
+
+# act
+# "ready" : tell scheduler it's ready to take jobs
+# "drive", {linear, angular} : drive at the speed of {}
+# "delay", {n} : delay with n secs
+# "go", {R, N} : go to Route R Node N
+
+# res
+# "take" : take the allocated job, scheduler can prepare next one
+# "done" : current job is finished, scheduler can allocate next one
+# "error" : error occurr, further check feedback part
+
+# feedback
+# "error type" : explanation

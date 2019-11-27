@@ -138,6 +138,10 @@ using namespace std;
 /* basic info publish topic (in string) */
 #define MONITOR_TOPIC "controller/monitor_topic" 
 
+/* scheduler */
+#define ROBOT_SCHEDULER_CONTROLLER "robot_scheduler_controller" // scheduler send to controller
+#define ROBOT_CONTROLLER_SCHEDULER "robot_controller_scheduler" // controller sned to scheduler
+
 namespace tircgo
 {
 }

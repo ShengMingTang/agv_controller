@@ -37,6 +37,7 @@
 #define MODE_CALIB 4
 #define MODE_TRAINING 8
 #define MODE_WORKING 16
+#define MODE_AUTO 1 << 14
 #define MODE_NOTOK 1 << 15
 
 #define TRAIN_ROUTE_MAX 5
