@@ -48,8 +48,8 @@
 #define TRAIN_NODE_MIN 2
 #define TRAIN_NODE_MAX 10000
 
-#define DRIVE_VEL_LINEAR 30
-#define DRIVE_VEL_ANGULAR 5
+#define DRIVE_VEL_LINEAR 40
+#define DRIVE_VEL_ANGULAR 8
 
 #define CONTROL_WIFI 1
 
@@ -76,40 +76,48 @@ namespace tircgo
         void monitor_display()const;
         string dumps_graph();
     private:
-        /* Mode related */
-        void idle();
-        void calibration();
-        void training();
-        bool working();
+        /* ---------------------------------------------------------------------------------------------*/
+
         /* API */
-        // custom working list
-        /* return true if there is any kerenl instrcution*/
+        bool trigger_working();
+        const RouteNode get_affinity_vertex(const VertexType* _curr, const VertexType* _vptr);
+        bool add_target(const RouteNode &_nd);
         bool is_target_ocp(const VertexType *vptr);
-        bool is_target_valid(int _route, int _node);
+        bool is_target_valid(const RouteNode &_nd);
         bool priviledged_instr();
         bool shutdown();
         bool set_node();
         bool drive(vector<int16_t> _vel);
         void runtime_vars_mgr(bool _flag);
-
         /* API suport */
         int16_t decode_opcode();
         vector<int16_t> decode_drive();
         
+        /* ---------------------------------------------------------------------------------------------*/
+
+        /* Mode related */
+        void idle();
+        void calibration();
+        void training();
+        bool working();
         /* Sys related */
         void clear(); // print only
         void log(); // print only
         bool check_safety(); // tell near an obstable only
         sensor_msgs::Joy::ConstPtr get_joy_signal(); // Joy pub
+
+        /* ---------------------------------------------------------------------------------------------*/
         
         /* build time */
         ros::NodeHandle n;
         const string frame_id;
         int control = 0;
-        ros::Rate loop_rate = ros::Rate(20);
+        ros::Rate loop_rate = ros::Rate(5);
         float drive_timeout = 0.4;
         int close_enough = 30;
         
+        /* ---------------------------------------------------------------------------------------------*/
+
         /* UART related */
         UART base_driver;
         void status_tracking(const RobotStatus::ConstPtr& _msg); // UART pub
@@ -133,7 +141,9 @@ namespace tircgo
 
         ros::ServiceServer askdata_srv;
         bool askdata_serve(Ask_Data::Request &_req, Ask_Data::Response &_res);
-        
+
+        /* ---------------------------------------------------------------------------------------------*/
+
         /* Graph related */
         Graph<VertexType, EdgeType> graph;
         vector< vector<VertexType*> > rn_img; // [route][node] -> reference in graph

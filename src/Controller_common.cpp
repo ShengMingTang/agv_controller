@@ -311,22 +311,28 @@ void Controller::status_tracking(const RobotStatus::ConstPtr& _msg)
         }
         if(_msg->tracking_status_reply.is_activated){
             this->tracking_status = _msg->tracking_status_reply.reply;
-            if(this->tracking_status != TRACKING_STATUS_NONE && this->tracking_status != TRACKING_STATUS_NORMAL){
-                this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_Y, DEVICE_LED_ON, 1});
-                ROS_INFO("Tracking Lost");
-            }
-            else{
-                this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_Y, DEVICE_LED_OFF, 1});
+            switch (this->tracking_status)
+            {
+                case TRACKING_STATUS_NONE:
+                case TRACKING_STATUS_NORMAL:
+                    break;
+                case TRACKING_STATUS_ARRIVAL:
+                    this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_Y, DEVICE_LED_ON, 1});
+                    ROS_INFO("Arrival on target");
+                    break;
+                default:
+                    this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_Y, DEVICE_LED_OFF, 1});
+                    break;
             }
         }
         else if(this->mode & MODE_WORKING){
-            ROS_WARN("Tracking_status_reply invalid");
+            ROS_WARN("Tracking_status_reply not activated");
         }
         if(_msg->lidar_level_reply.is_activated){
             this->lidar_levels = _msg->lidar_level_reply.level_reply;
         }
         else{
-            ROS_WARN("Lidar_level_reply invalid");
+            ROS_WARN("Lidar_level_reply not activated");
         }
     }
     else{
@@ -346,9 +352,9 @@ void Controller::monitor_display() const
     stringstream ss;
     char buff[150];
     auto coor = this->pose_tracer.get_coor();
-    sprintf(buff, "mode:%d, trk:%d, pos:(%+.1f,%+.1f %+.1f), v:<%+2d,%+2d>, L:[%d,%d,%d,%d], Trn{%d, %d}, Tar<%d,%d>",
-                (int)this->mode,
-                (int)this->tracking_status,
+    sprintf(buff, "mode:%d, %d, trk:%d, pos:(%+.1f,%+.1f %+.1f), v:<%+2d,%+2d>, L:[%d,%d,%d,%d], Trn{%d, %d}, Tar<%d,%d>",
+                this->mode, this->stage_bm,
+                this->tracking_status,
                 coor.x, coor.y, (coor.w) / 3.14159 * 180,
                 this->pose_tracer.get_vel()[0], this->pose_tracer.get_vel()[1],
                 this->lidar_levels[0], this->lidar_levels[1], this->lidar_levels[2], this->lidar_levels[2],
@@ -456,9 +462,14 @@ bool Controller::priviledged_instr()
             this->shutdown();
             break;
         case OPCODE_AUTO_BEGIN:
-            this->stage_bm |= MODE_AUTO;
-            this->sch_srv.start();
-            ROS_WARN("Start auto mode");
+            if(this->stage_bm & MODE_TRAINING){
+                this->stage_bm |= MODE_AUTO;
+                this->sch_srv.start();
+                ROS_WARN("Start auto mode");
+            }
+            else{
+                ROS_ERROR("Not trained, press auto has no effect");
+            }
             break;
         case OPCODE_AUTO_FINISH:
             this->stage_bm &= (~MODE_AUTO);
@@ -471,10 +482,10 @@ bool Controller::priviledged_instr()
     return ret;
 }
 /* return if the _route, _node pair is valid in the current robot */
-bool Controller::is_target_valid(int _route, int _node)
+bool Controller::is_target_valid(const RouteNode &_nd)
 {
-    if(_route >= 0 && _route < this->rn_img.size()){
-        return _node < this->rn_img[_route].size();
+    if(_nd.route >= 0 && _nd.route < this->rn_img.size()){
+        return _nd.node < this->rn_img[_nd.route].size(); // short check, assume nodes come in successive order
     }
     return false;
 }

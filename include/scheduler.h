@@ -39,6 +39,7 @@ using namespace tircgo_controller;
         ac_.sendGoal(goal_);\
         ac_.waitForResult();\
         r.sleep();\
+        ROS_INFO("Status : %s", ac_.getState().toString().c_str());\
     }while(ros::ok() && ac_.getState() != actionlib::SimpleClientGoalState::SUCCEEDED);\
 }
 #define Go(r, n) \

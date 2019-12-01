@@ -43,29 +43,7 @@ void Controller::idle()
     RobotInvoke srv;
     switch(this->op){
         case OPCODE_NONE:
-            if(this->stage_bm & MODE_TRAINING && !this->work_list.empty()){
-                // check if there were jobs to do
-                VertexType *next_vptr = this->work_list.front();
-                
-                // if none, enter working mode and claim.
-                if(!(this->is_target_ocp(next_vptr))){
-                    RouteNode next_nd = *(next_vptr->aliases.begin());
-                    vector<int16_t> work_args = {next_nd.route, next_nd.node};
-                    srv = this->base_driver.invoke(OPCODE_WORK_BEGIN, work_args);
-                    if(this->base_driver.is_invoke_valid(srv)){
-                        this->ocp_vptr = this->work_list.front(); // claim
-                        // ROS_INFO("Claim the target node is occupied by the current robot");
-                        // ROS_INFO("Enter working mode");
-                    }
-                    #ifdef ROBOT_CONTROLLER_TEST
-                        this->mode = MODE_WORKING;
-                        this->stage_bm |= MODE_WORKING;
-                    #endif
-                }
-                else{
-                    ROS_INFO("Want to work but target is occupied, waiting");
-                }
-            }
+            this->trigger_working();
             break;
         case OPCODE_CALIB:
             srv = this->base_driver.invoke(OPCODE_CALIB, vector<int16_t>());
@@ -102,22 +80,7 @@ void Controller::idle()
         }
         /* work manually, just push node here*/
         case OPCODE_WORK_BEGIN:
-            if(this->stage_bm & MODE_TRAINING){
-                if(this->is_target_valid(this->nd_target.route, this->nd_target.node)){
-                    this->work_list.clear();
-                    auto path = this->graph.shortest_path(this->ocp_vptr, this->rn_img[this->nd_target.route][this->nd_target.node]).second;
-                    this->work_list.insert(this->work_list.end(), path.begin(), path.end());
-                    stringstream ss;
-                    for(auto it : this->work_list){
-                        RouteNode nd = *(it->aliases.begin());
-                        ss << "((" << nd.route << ", " << nd.node << "))->";
-                    }
-                    ROS_INFO("%s", ss.str().c_str());
-                }
-                else{
-                    ROS_ERROR("Target out of range, plz reset");
-                }
-            }
+            this->add_target(this->nd_target);
             break;
         case OPCODE_AUTO_BEGIN:
         case OPCODE_AUTO_FINISH:
@@ -198,9 +161,11 @@ bool Controller::working()
     if(this->tracking_status == TRACKING_STATUS_ARRIVAL){
         auto srv = this->base_driver.invoke(OPCODE_WORK_FINISH, vector<int16_t>());
         if(this->base_driver.is_invoke_valid(srv)){
-            this->ocp_vptr = this->work_list.front();
-            this->pose_tracer.set_coor(this->ocp_vptr->pos.x, this->ocp_vptr->pos.y);
-            this->work_list.pop_front();
+            if(!this->work_list.empty()){
+                this->ocp_vptr = this->work_list.front();
+                this->pose_tracer.set_coor(this->ocp_vptr->pos.x, this->ocp_vptr->pos.y);
+                this->work_list.pop_front();
+            }
 
             #ifdef ROBOT_CONTROLLER_TEST
                 this->tracking_status = TRACKING_STATUS_NORMAL;
@@ -214,7 +179,7 @@ bool Controller::working()
         auto srv = this->base_driver.invoke(OPCODE_WORK_FINISH, vector<int16_t>());
         if(this->base_driver.is_invoke_valid(srv)){
             auto sig_srv = this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_3L_2S, 1});
-            ROS_INFO("Stop working due to an unsafe condition");
+            ROS_INFO("Stop working due to unsafe condition");
         }
     }
     return false;
@@ -298,5 +263,93 @@ bool Controller::set_node()
     else{
         ROS_ERROR("Drive error in SetNode, setnode not done");
         return false;
+    }
+}
+bool Controller::add_target(const RouteNode &_nd)
+{
+    if(this->stage_bm & MODE_TRAINING){
+        if(this->is_target_valid(_nd)){
+            this->work_list.clear();
+            auto path = this->graph.shortest_path(this->ocp_vptr, this->rn_img[_nd.route][_nd.node]).second;
+            this->work_list.insert(this->work_list.end(), path.begin(), path.end());
+            if(!this->work_list.empty()){
+                this->work_list.pop_front();
+            }
+            stringstream ss;
+            ss << "Path : ";
+            for(auto it = this->work_list.begin(); it != this->work_list.end(); it++){
+                RouteNode nd = *((*it)->aliases.begin());
+                if(it != this->work_list.begin()){
+                    auto it2 = it;
+                    it2--;
+                    nd = this->get_affinity_vertex(*it2, *it);
+                }
+                ss << "R" << nd.route << "N" << nd.node << " -> ";
+            }
+            ROS_INFO("%s", ss.str().c_str());
+        }
+        else{
+            ROS_ERROR("Target out of range, plz reset");
+            return false;
+        }
+    }
+    else{
+        ROS_ERROR("Not trained but want to add target");
+        return false;
+    }
+    return true;
+}
+/* Find the RouteNode on the same path as the curret one */
+const RouteNode Controller::get_affinity_vertex(const VertexType* _curr, const VertexType* _vptr)
+{
+    RouteNode ret;
+    ret.route = -1, ret.node = -1;
+    if(_vptr){
+        set<int16_t> s;
+        for(auto it : _curr->aliases){
+            s.insert(it.route);
+        }
+        for(auto it : _vptr->aliases){
+            if(s.find(it.route) != s.end()){
+                ret = it;
+                break;
+            }
+        }
+    }
+    if(ret.route == -1 && ret.node == -1){
+        ROS_ERROR("Can't find a close affinity RouteNode");
+    }
+    return ret;
+}
+/* 
+    trigger working if work_list is not empty 
+    return true if the robot has entered working
+    false otherwise
+*/
+bool Controller::trigger_working()
+{
+    if(this->stage_bm & MODE_TRAINING && !this->work_list.empty()){
+        // check if there were jobs to do
+        VertexType *next_vptr = this->work_list.front();
+        // if none, enter working mode and claim.
+        if(!(this->is_target_ocp(next_vptr))){
+            RouteNode next_nd = this->get_affinity_vertex(this->ocp_vptr, next_vptr);
+            vector<int16_t> work_args = {next_nd.route, next_nd.node};
+            auto srv = this->base_driver.invoke(OPCODE_WORK_BEGIN, work_args);
+            if(this->base_driver.is_invoke_valid(srv)){
+                this->ocp_vptr = this->work_list.front(); // claim
+                ROS_INFO("Claim the target node is occupied by the current robot");
+                ROS_INFO("Enter working mode");
+                // @@
+                // avoid invoke working on UART repeatedly
+            }
+            #ifdef ROBOT_CONTROLLER_TEST
+                this->mode = MODE_WORKING;
+                this->stage_bm |= MODE_WORKING;
+            #endif
+        }
+        else{
+            ROS_INFO("Want to work but target is occupied, waiting");
+        }
     }
 }

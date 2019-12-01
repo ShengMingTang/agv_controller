@@ -12,7 +12,7 @@ UART::UART(const string& _parent_frame_id)
 }
 UART::~UART()
 {
-    ROS_INFO("UART destroyed");
+    ROS_INFO("UART destructed");
 }
 RobotInvoke UART::invoke(const int16_t _op, const std::vector<int16_t> _args)
 {
@@ -85,22 +85,21 @@ bool UART::is_invoke_valid(const RobotInvoke  &_srv)
         switch (_srv.request.operation)
         {
             case OPCODE_WORK_BEGIN:
-                ROS_INFO("Head for R%dN%d", _srv.request.argument[0], _srv.request.argument[1]);
+                ROS_INFO("[UART] Head for R%dN%d", _srv.request.argument[0], _srv.request.argument[1]);
                 break;
             case OPCODE_WORK_FINISH:
-                ROS_INFO("Work finished\n");
+                ROS_INFO("[UART] Work finished\n");
                 break;
             case OPCODE_CALIB:
-               ROS_INFO("End Calib\n");
+               ROS_INFO("[UART] End Calib\n");
                 break;
             case OPCODE_TRAIN_BEGIN:
-                ROS_INFO("Begin Training @ R%d", _srv.request.argument[0]);
+                ROS_INFO("[UART] Begin Training @ R%d", _srv.request.argument[0]);
                 break;
             case OPCODE_TRAIN_FINISH:
-                ROS_INFO("Finish training\n");
+                ROS_INFO("[UART] Finish training\n");
                 break;
             case OPCODE_SETNODE:
-                // ROS_INFO("Node #%d set successfully", _srv.response.feedback[0]);
                 break;
             default:
                 break;
