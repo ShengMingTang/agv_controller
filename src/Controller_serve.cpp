@@ -87,7 +87,6 @@ void Controller::execute_schedule(const tircgo_controller::scheduleGoalConstPtr 
     if(!(this->stage_bm & MODE_AUTO)){
         success = false;
         this->sch_res.res = "Not done";
-        ROS_INFO("Action : %s Not done\n", _goal->act.c_str());
     }
     if(success){
         ROS_INFO("Action : %s taken", _goal->act.c_str());

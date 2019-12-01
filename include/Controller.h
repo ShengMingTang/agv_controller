@@ -40,9 +40,9 @@
 #define MODE_POS 2
 #define MODE_CALIB 4
 #define MODE_TRAINING 8
-#define MODE_WORKING 16
-#define MODE_AUTO 1 << 14
-#define MODE_NOTOK 1 << 15
+#define MODE_WORKING (int16_t)16
+#define MODE_AUTO (int16_t)32
+#define MODE_NOTOK (int16_t)64
 
 #define TRAIN_ROUTE_MAX 5
 #define TRAIN_NODE_MIN 2
@@ -150,8 +150,8 @@ namespace tircgo
 
         /* runtime supoort vars */
         sensor_msgs::Joy::ConstPtr op_ptr;
-        int mode = MODE_IDLE; // strictly tracked
-        int stage_bm = MODE_IDLE;
+        int16_t mode = MODE_IDLE; // strictly tracked
+        int16_t stage_bm = MODE_IDLE;
         vector<int16_t> lidar_levels;
         ros::Publisher monitor;
         vector<int16_t> op_vel;
