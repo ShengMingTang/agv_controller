@@ -1,27 +1,34 @@
 # tircgo1107
 
 # goal
-string act # specify the main core of this action
-int32[] args # args to address more about this action
+int16 act # specify the main core of this action
+int16[] args # args to address more about this action
 ---
 # result
 string res
-int32[] args
+int16[] args
 ---
 # feedback
 string feedback
-int32[] args
+int16[] args
 
-# act
-# "ready" : tell scheduler it's ready to take jobs
-# "drive", {linear, angular} : drive at the speed of {}
-# "delay", {n} : delay with n secs
-# "go", {R, N} : go to Route R Node N
+# act {..} , ".." means args are the same as robotInvoke.
 
-# res
+## scriptable
+# OPCODE_DRIVE {linear, angular, duration in 1e-1s}
+# OPCODE_CALIB {..}
+# OPCODE_TRAIN_BEGIN {..}
+# OPCODE_SETNODE {..}
+# OPCODE_TRAIN_FINISH {..}
+
+## nonscriptable
+# OPCODE_WORKFINISH {..} // reserved for scripts
+# OPCODE_DELAY {n} // delay for n 1e-1s
+
+# res, human readable
 # "take" : take the allocated job, scheduler can prepare next one
 # "done" : current job is finished, scheduler can allocate next one
 # "error" : error occurr, further check feedback part
 
-# feedback
+# feedback, human readable
 # "error type" : explanation

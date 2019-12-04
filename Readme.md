@@ -10,24 +10,21 @@
 
 # nodes available
 ## tircgo_controller/ticgo_c... for controller node
-## ticgo_controller/tircgo_s... for schduler node
+## ticgo_controller/tircgo_s... for schduler node [deprecated]
 
-```c++
-// template for scheduler.cpp
-// put it under tircgo/src/tircgo_controller/src
-// $ source path_to_tircgo/devel/setup.bash
-// $ cd ~/tircgo
-// $ catkin_make
-// $ roslaunch tircgo_controller background.launch
-#include "scheduler.h"
+## Note that instruction are written in schedule.py
+## rosrun scheduler.py to execute this schedule
 
-void setup()
-{
-    
-}
-
-void loop()
-{
-
-}
+```python
+# Go(R, N), go to specified node N in route R
+# Delay(n), delay 0.1n sec
+# setup() only runs once in the start of this schedule
+# loop() will loop over the life of this schedule
+from scheduler import *
+def setup():
+    # any code
+    return
+def loop():
+    # any code
+    return
 ```

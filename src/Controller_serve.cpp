@@ -89,14 +89,14 @@ void Controller::execute_schedule(const tircgo_controller::scheduleGoalConstPtr 
         this->sch_res.res = "Not done";
     }
     if(success){
-        ROS_INFO("Action : %s taken", _goal->act.c_str());
+        ROS_INFO("Action : %c taken", _goal->act);
         stringstream ss;
         ss << "Args : ";
         for(auto it : _goal->args){
             ss << it << " ";
         }
         ROS_INFO("%s", ss.str().c_str());
-        if(_goal->act == "go"){
+        if(_goal->act == OPCODE_WORK_BEGIN){
             /* just push node here*/
             RouteNode nd;
             nd.route = _goal->args[0], nd.node = _goal->args[1];
@@ -125,10 +125,11 @@ void Controller::execute_schedule(const tircgo_controller::scheduleGoalConstPtr 
                 }
             }
         }
-        else if(_goal->act ==  "delay"){
+        else if(_goal->act == OPCODE_DELAY){
             ros::Time start_time = ros::Time::now();
             if(_goal->args.size() > 0){
-                while((ros::Time::now() - start_time).toSec() * 1000 < _goal->args[0]){
+                double t = (ros::Time::now() - start_time).toSec() * 10;
+                while(static_cast<int16_t>(t) < _goal->args[0]){
                     // delay
                     if(this->sch_srv.isPreemptRequested() || !ros::ok()){
                         ROS_INFO("Auto mode preempted");
@@ -143,12 +144,10 @@ void Controller::execute_schedule(const tircgo_controller::scheduleGoalConstPtr 
     }
     if(success){
         this->sch_res.res = "done";
-        ROS_INFO("Action : %s done\n", _goal->act.c_str());
+        ROS_INFO("Action : %c done\n", _goal->act);
         this->sch_srv.setSucceeded(this->sch_res);
     }
     else{
-        // this->sch_res.res = "Not done";
-        // ROS_INFO("Action : %s Not done\n", _goal->act.c_str());
         this->sch_srv.setAborted(this->sch_res);
     }
 }

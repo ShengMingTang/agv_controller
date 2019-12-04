@@ -224,13 +224,13 @@ target_compile_definitions(tircgo_controller_node PUBLIC
 target_link_libraries(tircgo_controller_node ${catkin_LIBRARIES})
 add_dependencies(tircgo_controller_node tircgo_controller_gencpp ${catkin_EXPORTED_TARGETS})
 
-add_executable(tircgo_scheduler_node src/scheduler.cpp)
-target_link_libraries( 
-  tircgo_scheduler_node
-  ${catkin_LIBRARIES}
-)
+# add_executable(tircgo_scheduler_node src/scheduler.cpp)
+# target_link_libraries( 
+#   tircgo_scheduler_node
+#   ${catkin_LIBRARIES}
+# )
 
-add_dependencies(
-  tircgo_scheduler_node
-  ${tircgo_controller_EXPORTED_TARGETS}
-)
+# add_dependencies(
+#   tircgo_scheduler_node
+#   ${tircgo_controller_EXPORTED_TARGETS}
+# )

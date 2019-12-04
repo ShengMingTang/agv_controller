@@ -174,6 +174,7 @@ namespace tircgo
         actionlib::SimpleActionServer<tircgo_controller::scheduleAction> sch_srv;
         tircgo_controller::scheduleFeedback sch_feedback;
         tircgo_controller::scheduleResult sch_res;
+        boost::mutex mutex;
     };
 }
 #endif

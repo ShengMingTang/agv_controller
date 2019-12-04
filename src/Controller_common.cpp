@@ -129,6 +129,18 @@ int16_t Controller::decode_opcode()
         else if(this->stage_bm & MODE_AUTO && buttons[JOYBUTTON_START]){
             return OPCODE_AUTO_FINISH;
         }
+        else if(buttons[JOYBUTTON_LB]){
+            this->base_driver.get_cmds();
+        }
+        else if(buttons[JOYBUTTON_LT]){
+            this->base_driver.clear();
+        }
+        else if(buttons[JOYBUTTON_RB]){
+            // broadcasr output
+        }
+        else if(buttons[JOYBUTTON_RT]){
+            // receive other's script
+        }
         // decode mode dependent instructions
         switch(this->mode){
             case MODE_IDLE:
@@ -139,14 +151,14 @@ int16_t Controller::decode_opcode()
                 else if(buttons[JOYBUTTON_B])
                     ret = OPCODE_WORK_BEGIN;
 
-                else if(buttons[JOYBUTTON_RT])
+                else if(axes[JOYAXES_CROSS_LR] == -1.0)
                     this->nd_target.route = (this->nd_target.route + 1) % TRAIN_ROUTE_MAX;
-                else if(buttons[JOYBUTTON_LT] && this->nd_target.route > 0){
+                else if(axes[JOYAXES_CROSS_LR] == 1 && this->nd_target.route > 0){
                     this->nd_target.route--;
                 }
-                else if(buttons[JOYBUTTON_RB])
+                else if(axes[JOYAXES_CROSS_UD] == 1.0)
                     this->nd_target.node++;
-                else if(buttons[JOYBUTTON_LB] && this->nd_target.node > 0){
+                else if(axes[JOYAXES_CROSS_UD] == -1 && this->nd_target.node > 0){
                     this->nd_target.node--;
                 }
                 
@@ -184,19 +196,9 @@ vector<int16_t> Controller::decode_drive()
     if(this->op_ptr){
         vector<float> axes = this->op_ptr->axes;
         vector<int32_t> buttons = this->op_ptr->buttons;
-        // privileged instructions 
-        if(buttons[JOYBUTTON_A]){
-            return {0, 0};
-        }
-        // decode vw
-        if(axes[JOYAXES_CROSS_UD] != 0 || axes[JOYAXES_CROSS_LR] != 0){
-            int16_t vv = axes[JOYAXES_CROSS_UD] * DRIVE_VEL_LINEAR;
-            int16_t ww = axes[JOYAXES_CROSS_LR] * DRIVE_VEL_ANGULAR;
-            vv = (ww == 0) ? vv : 0;
-            return {vv, ww};
-        }
+        return {static_cast<int16_t>(axes[JOYAXES_STICKLEFT_UD] * DRIVE_VEL_LINEAR),
+            static_cast<int16_t>(axes[JOYAXES_STICKLEFT_LR] * DRIVE_VEL_ANGULAR)};
     }
-    // empty drive cmd, kepp current vel
     return this->pose_tracer.get_vel();
 }
 
@@ -206,32 +208,19 @@ vector<int16_t> Controller::decode_drive()
 */
 bool Controller::drive(vector<int16_t> _vel)
 {
-
     // trained but not in training
     if((this->stage_bm & MODE_TRAINING) && (this->mode != MODE_TRAINING || this->nd_training.node == -1)){
         _vel = {0, 0};
     }
     this->op_vel = _vel;
-
-    // legal condition to drive
-    double t = (ros::Time::now() - this->pose_tracer.get_starttime()).toSec();
-    if(t >= this->drive_timeout || _vel[0] != this->pose_tracer.get_vel()[0] || _vel[1] != this->pose_tracer.get_vel()[1]){ // different motion
-        if(_vel[0] == 0 && this->pose_tracer.get_vel()[0] == 0 &&
-           _vel[1] == 0 && this->pose_tracer.get_vel()[1] == 0){
-               // don't send redundant 0 vel
-        }
-        else{
-            if(this->check_safety()){
-                auto srv = this->base_driver.invoke(OPCODE_DRIVE, {_vel[0], _vel[1]});
-                if(this->base_driver.is_invoke_valid(srv)){
-                    this->pose_tracer.set_vw(_vel);
-                }
-            }
-            else{
-                ROS_INFO("Unsafe condition, drive rejected");
-                return false;
-            }
-        }
+    // // legal condition to driveif(this->check_safety()){
+    auto srv = this->base_driver.invoke(OPCODE_DRIVE, _vel);
+    if(this->base_driver.is_invoke_valid(srv)){
+        this->pose_tracer.set_vw(_vel);
+    }
+    else{
+        ROS_INFO("Unsafe condition, drive rejected");
+        return false;
     }
 
     return true;
@@ -248,6 +237,7 @@ void Controller::clear()
         it.clear();
     }
     this->work_list.clear();
+    this->base_driver.clear();
     ROS_INFO("Clear data");
     auto srv = this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_3L_2S, 1});
     this->base_driver.is_invoke_valid(srv);

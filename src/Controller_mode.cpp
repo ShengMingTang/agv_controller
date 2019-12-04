@@ -7,7 +7,6 @@ void Controller::loopOnce()
 {
     // loopOnce front
     this->runtime_vars_mgr(RUNTIME_VARS_SET);
-
     // loopOnce body (User-Custom space)
     if(!this->priviledged_instr() && !(this->stage_bm & MODE_AUTO)){
         switch(this->mode){
@@ -32,7 +31,6 @@ void Controller::loopOnce()
                 break;
         }
     }
-
     // loopOnce back
     this->runtime_vars_mgr(RUNTIME_VARS_RESET);
     this->monitor_display();
@@ -153,25 +151,28 @@ void Controller::training()
 */
 bool Controller::working()
 {
+    this->mutex.lock();
+
     #ifdef ROBOT_CONTROLLER_TEST
         ros::Rate r(1);
         r.sleep();
         this->tracking_status = TRACKING_STATUS_ARRIVAL;
     #endif
+
     if(this->tracking_status == TRACKING_STATUS_ARRIVAL){
         auto srv = this->base_driver.invoke(OPCODE_WORK_FINISH, vector<int16_t>());
         if(this->base_driver.is_invoke_valid(srv)){
-            if(!this->work_list.empty()){
-                this->ocp_vptr = this->work_list.front();
-                this->pose_tracer.set_coor(this->ocp_vptr->pos.x, this->ocp_vptr->pos.y);
-                this->work_list.pop_front();
-            }
+            
+            this->ocp_vptr = this->work_list.front();
+            this->pose_tracer.set_coor(this->ocp_vptr->pos.x, this->ocp_vptr->pos.y);
+            this->work_list.pop_front();
 
             #ifdef ROBOT_CONTROLLER_TEST
                 this->tracking_status = TRACKING_STATUS_NORMAL;
                 this->mode = MODE_IDLE;
             #endif
-
+            
+            this->mutex.unlock();
             return true;
         }
     }
@@ -182,6 +183,7 @@ bool Controller::working()
             ROS_INFO("Stop working due to unsafe condition");
         }
     }
+    this->mutex.unlock();
     return false;
 }
 bool Controller::set_node()
@@ -328,6 +330,7 @@ const RouteNode Controller::get_affinity_vertex(const VertexType* _curr, const V
 */
 bool Controller::trigger_working()
 {
+    this->mutex.lock();
     if(this->stage_bm & MODE_TRAINING && !this->work_list.empty()){
         // check if there were jobs to do
         VertexType *next_vptr = this->work_list.front();
@@ -340,16 +343,17 @@ bool Controller::trigger_working()
                 this->ocp_vptr = this->work_list.front(); // claim
                 ROS_INFO("Claim the target node is occupied by the current robot");
                 ROS_INFO("Enter working mode");
-                // @@
-                // avoid invoke working on UART repeatedly
+                #ifdef ROBOT_CONTROLLER_TEST
+                    this->mode = MODE_WORKING;
+                    this->stage_bm |= MODE_WORKING;
+                #endif
+                this->mutex.unlock();
+                return true;
             }
-            #ifdef ROBOT_CONTROLLER_TEST
-                this->mode = MODE_WORKING;
-                this->stage_bm |= MODE_WORKING;
-            #endif
         }
         else{
             ROS_INFO("Want to work but target is occupied, waiting");
         }
     }
+    this->mutex.unlock();
 }
