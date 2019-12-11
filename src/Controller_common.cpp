@@ -16,9 +16,10 @@ base_driver{UART(_id)}
 
 ,askdata_srv{this->n.advertiseService(ROBOT_WIFI_ASKDATA_INNER, &Controller::askdata_serve, this)}
 
-,sch_srv{this->n, ROBOT_SCHEDULER_CONTROLLER, boost::bind(&Controller::execute_schedule, this, _1), false}
+// controller space
+,sch_srv{this->n, (_id + ROBOT_SCHEDULER_CONTROLLER).c_str(), boost::bind(&Controller::execute_schedule, this, _1), false}
+,pub_agent_imm{this->n.advertise<tircgo_msgs::ControllerTalk>((_id + ROBOT_CONTROLLER_AGENT).c_str(), MSG_QUE_SIZE)}
 
-,pub_agent_imm{this->n.advertise<tircgo_msgs::ControllerTalk>(ROBOT_CONTROLLER_AGENT, MSG_QUE_SIZE)}
 {
     this->nd_training.route = this->nd_training.node = 0;
     this->ocp_vptr = nullptr;

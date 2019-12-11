@@ -9,22 +9,28 @@
 ## source tircgo/devel/setup.bash
 
 # nodes available
-## tircgo_controller/ticgo_c... for controller node
-## ticgo_controller/tircgo_s... for schduler node [deprecated]
+## If running a node any below with nonempty cmd line args, the first one must be its name [mendatory]
+## Use "" to pass an empty string to the process
 
-## Note that instruction are written in schedule.py
-## rosrun scheduler.py to execute this schedule
+## tircgo_controller/ticgo_c... for controller node
+> main control
+## tircgo_controller/Agent.py
+> for UART history
+## tircgo_controller/Scheduler.py
+> for Schedule, written in setup() and loop() using shot hand function above
+
+# For testing
+## tircgo_controller/Imm_wifi.py
+> Emulating wifi, the first 2 args is the sender and the receiver, matched with the one you launch controller with
 
 ```python
-# Go(R, N), go to specified node N in route R
-# Delay(n), delay 0.1n sec
-# setup() only runs once in the start of this schedule
-# loop() will loop over the life of this schedule
-from scheduler import *
+# In tircgo_controller/src/scripts/Scheduler.py
+# customize the 2 function above using ONLY
+# Work(R, N)
+# Drive(Linear, Angular, duration)
+# Delay(N) for 0.1*N sec
 def setup():
-    # any code
     return
 def loop():
-    # any code
     return
 ```

@@ -7,16 +7,21 @@ import sys
 import tircgo_controller.msg
 import tircgo_msgs.msg
 
-rospy.init_node('imm_wifi', anonymous=True)
-pub = rospy.Publisher('robot_wifi_controller_talk_outer', tircgo_msgs.msg.ControllerTalk, queue_size=10)
-def callback(data):
-    pub.publish(data)
-    rospy.loginfo('hi')
-def Subscriber():
-    sub = rospy.Subscriber('robot_wifi_controller_talk_inner', tircgo_msgs.msg.ControllerTalk, callback)
+class Imm():
+    def __init__(self, a = '', b = ''):
+        self.sub = rospy.Subscriber(a + 'robot_wifi_controller_talk_inner', tircgo_msgs.msg.ControllerTalk, self.callback)
+        self.pub = rospy.Publisher(b + 'robot_wifi_controller_talk_outer', tircgo_msgs.msg.ControllerTalk, queue_size=10)
+    def callback(self, data):
+        self.pub.publish(data)    
 if __name__ == '__main__':
     try:
-        Subscriber()
+        if len(sys.argv) == 3:
+            rospy.init_node(sys.argv[1] + sys.argv[2] + 'imm_wifi', anonymous=True)
+            rospy.loginfo('Build an immediate node from %s to %s' % (sys.argv[1], sys.argv[2]))
+            Imm(sys.argv[1], sys.argv[2])
+        else:
+            rospy.init_node('imm_wifi', anonymous=True)
+            Imm()
         rospy.spin()
     except rospy.ROSInterruptException:
         print("program interrupted before completion", file=sys.stderr)

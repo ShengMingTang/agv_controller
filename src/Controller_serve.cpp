@@ -295,7 +295,7 @@ void Controller::execute_schedule(const tircgo_controller::scheduleGoalConstPtr 
                     success = false;
                     break;
                 }
-            }while(static_cast<int16_t>(t) * 100 < _goal->args[2]);
+            }while(static_cast<int16_t>(t) * 100 < _goal->args[2] && this->stage_bm & MODE_AUTO);
         }
         else if(_goal->act == OPCODE_TRAIN_BEGIN){
             success = this->train_begin();
