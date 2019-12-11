@@ -16,7 +16,9 @@ base_driver{UART(_id)}
 
 ,askdata_srv{this->n.advertiseService(ROBOT_WIFI_ASKDATA_INNER, &Controller::askdata_serve, this)}
 
-,sch_srv(this->n, ROBOT_SCHEDULER_CONTROLLER, boost::bind(&Controller::execute_schedule, this, _1), false)
+,sch_srv{this->n, ROBOT_SCHEDULER_CONTROLLER, boost::bind(&Controller::execute_schedule, this, _1), false}
+
+,pub_agent_imm{this->n.advertise<tircgo_msgs::ControllerTalk>(ROBOT_CONTROLLER_AGENT, MSG_QUE_SIZE)}
 {
     this->nd_training.route = this->nd_training.node = 0;
     this->ocp_vptr = nullptr;
@@ -34,10 +36,11 @@ void Controller::setup(int _argc, char **argv)
         if(opt == "-h"){
             ROS_INFO("|-----------------------------------------------|");
             ROS_INFO("| [-h]: display this msg                        |");
+            ROS_INFO("| [-i]: string, identifier of this robot        |");
             ROS_INFO("| [-f]: int = 20, operating frequency           |");
             ROS_INFO("| [-d]: float = 0.4, drive timeout              |");
             ROS_INFO("| [-p]: int = 60, precision for merging nodes   |");
-            ROS_INFO("| [-m]: int = 0, set control (using bitmap      |");
+            ROS_INFO("| [-m]: int = 0, set control (using bitmap)     |");
             ROS_INFO("| control = {wifi(0/1)}                         |");
             ROS_INFO("|-----------------------------------------------|");
             this->stage_bm |= MODE_NOTOK;
@@ -82,6 +85,16 @@ void Controller::setup(int _argc, char **argv)
                 ROS_ERROR("Invalid number of cmd line args");
             }
         }
+        else if(opt == "-i"){
+            if(i + 1 < _argc){
+                opt = argv[i+1];
+                this->frame_id = opt;
+                i++;
+            }
+            else{
+                ROS_ERROR("Invalid number of cmd line args");
+            }
+        }
         else{
             ROS_INFO("Unknown option, neglected");
         }
@@ -91,7 +104,6 @@ void Controller::setup(int _argc, char **argv)
         ROS_INFO("Controller Setup :");
         ROS_INFO("> Only objects in front/back could block, neglect side objects");
         ROS_INFO("> System parameter :");
-        // ROS_INFO("> Loop at frequency %f", this->loop_rate.cycleTime().toSec());
         ROS_INFO("> Control mode : %d", this->control);
         ROS_INFO("> Drive Refresh Time : %.1f", this->drive_timeout);
         ROS_INFO("> Node merge max separation : %d", this->close_enough);
@@ -130,16 +142,32 @@ int16_t Controller::decode_opcode()
             return OPCODE_AUTO_FINISH;
         }
         else if(buttons[JOYBUTTON_LB]){
-            this->base_driver.get_cmds();
+            // display UART history
+            ROS_INFO("%s", this->base_driver.get_cmds().c_str());
         }
         else if(buttons[JOYBUTTON_LT]){
+            // clear UART history
             this->base_driver.clear();
-        }
-        else if(buttons[JOYBUTTON_RB]){
-            // broadcasr output
+            ROS_INFO("Clear UART history");
         }
         else if(buttons[JOYBUTTON_RT]){
-            // receive other's script
+            // publish our UART histroy anonymously, all receiver
+            tircgo_msgs::ControllerTalk msg;
+            msg.talk = this->base_driver.get_cmds();
+            this->pub_agent_imm.publish(msg);
+            ROS_INFO("Publish UART history");
+        }
+        else if(buttons[JOYBUTTON_RB]){
+            // switch agent action input
+            if(this->stage_bm & MODE_AGENT){
+                this->stage_bm &= (~MODE_AGENT);
+                ROS_INFO("Turn off agent input");
+            }
+            else{
+                this->stage_bm |= MODE_AGENT;
+                this->sch_srv.start();
+                ROS_INFO("Turn on agent input");
+            }
         }
         // decode mode dependent instructions
         switch(this->mode){
@@ -196,8 +224,12 @@ vector<int16_t> Controller::decode_drive()
     if(this->op_ptr){
         vector<float> axes = this->op_ptr->axes;
         vector<int32_t> buttons = this->op_ptr->buttons;
-        return {static_cast<int16_t>(axes[JOYAXES_STICKLEFT_UD] * DRIVE_VEL_LINEAR),
-            static_cast<int16_t>(axes[JOYAXES_STICKLEFT_LR] * DRIVE_VEL_ANGULAR)};
+        if(abs(axes[JOYAXES_STICKLEFT_UD]) > abs(axes[JOYAXES_STICKLEFT_LR])){
+            return {static_cast<int16_t>(axes[JOYAXES_STICKLEFT_UD]) * static_cast<int16_t>(DRIVE_VEL_LINEAR), 0};
+        }
+        else{
+            return {0, static_cast<int16_t>(axes[JOYAXES_STICKLEFT_LR]) * static_cast<int16_t>(DRIVE_VEL_ANGULAR)};
+        }
     }
     return this->pose_tracer.get_vel();
 }
@@ -237,8 +269,8 @@ void Controller::clear()
         it.clear();
     }
     this->work_list.clear();
-    this->base_driver.clear();
-    ROS_INFO("Clear data");
+    // this->base_driver.clear();
+    ROS_INFO("Clear data, UART histroy not cleared, press LT to clear");
     auto srv = this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_3L_2S, 1});
     this->base_driver.is_invoke_valid(srv);
 }
@@ -281,54 +313,7 @@ bool Controller::check_safety()
     }
     return ret;
 }
-/* subsriber to track status */
-void Controller::status_tracking(const RobotStatus::ConstPtr& _msg)
-{
-    if(_msg->is_activated){
-        this->mode = _msg->now_mode;
-        this->stage_bm |= _msg->now_mode;
-        switch (this->mode)
-        {
-            case MODE_TRAINING:
-                this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_G, DEVICE_LED_OFF, 1});
-                this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_Y, DEVICE_LED_ON, 1});
-                break;
-            case MODE_WORKING:
-                this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_Y, DEVICE_LED_OFF, 1});
-                this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_G, DEVICE_LED_ON, 1});
-            default:
-                break;
-        }
-        if(_msg->tracking_status_reply.is_activated){
-            this->tracking_status = _msg->tracking_status_reply.reply;
-            switch (this->tracking_status)
-            {
-                case TRACKING_STATUS_NONE:
-                case TRACKING_STATUS_NORMAL:
-                    break;
-                case TRACKING_STATUS_ARRIVAL:
-                    this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_Y, DEVICE_LED_ON, 1});
-                    ROS_INFO("Arrival on target");
-                    break;
-                default:
-                    this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_Y, DEVICE_LED_OFF, 1});
-                    break;
-            }
-        }
-        else if(this->mode & MODE_WORKING){
-            ROS_WARN("Tracking_status_reply not activated");
-        }
-        if(_msg->lidar_level_reply.is_activated){
-            this->lidar_levels = _msg->lidar_level_reply.level_reply;
-        }
-        else{
-            ROS_WARN("Lidar_level_reply not activated");
-        }
-    }
-    else{
-        ROS_ERROR("RobotStatus not activated");
-    }
-}
+
 
 /* interface for buffering joystick signal */
 sensor_msgs::Joy::ConstPtr Controller::get_joy_signal()
@@ -336,100 +321,6 @@ sensor_msgs::Joy::ConstPtr Controller::get_joy_signal()
     return this->joystick.pop();
 }
 
-/* echo status */
-void Controller::monitor_display() const
-{
-    stringstream ss;
-    char buff[150];
-    auto coor = this->pose_tracer.get_coor();
-    sprintf(buff, "mode:%d, %d, trk:%d, pos:(%+.1f,%+.1f %+.1f), v:<%+2d,%+2d>, L:[%d,%d,%d,%d], Trn{%d, %d}, Tar<%d,%d>",
-                this->mode, this->stage_bm,
-                this->tracking_status,
-                coor.x, coor.y, (coor.w) / 3.14159 * 180,
-                this->pose_tracer.get_vel()[0], this->pose_tracer.get_vel()[1],
-                this->lidar_levels[0], this->lidar_levels[1], this->lidar_levels[2], this->lidar_levels[2],
-                this->nd_training.route, this->nd_training.node,
-                this->nd_target.route, this->nd_target.node
-                );
-    std_msgs::String msg;
-    msg.data = string(buff);
-    this->monitor.publish(msg);
-}
-
-/* dumps graph to string*/
-string Controller::dumps_graph()
-{
-    const char graphviz_color[5][20] = {"indianred", "orange3", "yellow3", "green3", "lightblue3"};
-    auto coor = this->pose_tracer.get_coor(); 
-    geometry_msgs::Point pos;
-    pos.x = coor.x, pos.y = coor.y;
-    string digraph;
-    digraph += "graph G {\n";
-    digraph += "rankdir = LR;\n";
-    digraph += "#Tircgo[pos = \"" + to_string(coor.x) + "," + to_string(coor.y) + "!\"]\n";
-    // subgraph
-    int subgraph_count = 0;
-    double max_x = 0, max_y = 0;
-    for(auto it : this->graph.vertices){
-        if(abs(it.pos.x) > max_x)
-            max_x = abs(it.pos.x);
-        if(abs(it.pos.y) > max_y)
-            max_y = abs(it.pos.y);
-    }
-    if(abs(coor.x) > max_x)
-        max_x = abs(coor.x);
-    if(abs(coor.y) > max_y)
-        max_y = abs(coor.y);
-    if(max_x == 0)
-        max_x = 1;
-    if(max_y == 0)
-        max_y = 1;
-    for(auto it : this->graph.vertices){
-        string subgraph;
-        string name("cluster_");
-        name += (to_string(subgraph_count));
-        subgraph_count++;
-        subgraph += "subgraph " + name + "{\n";
-        subgraph += "style = filled;\n";
-        subgraph += "color = lightgrey;\n";
-        subgraph += "node [style=filled,color=white];\n";
-        for(auto it2 : it.aliases){
-            string node_s;
-            string node_name;
-            node_name += "R" + std::to_string(it2.route) + "N" + std::to_string(it2.node);
-            node_s +=  node_name+ "[\n";
-            node_s += "pos = \"" + std::to_string(it2.pos.x / max_x) + "," + std::to_string(it2.pos.y / max_y) + "!\"\n";
-            node_s += "label = " + node_name + "\n";
-            node_s += "color = ";
-            node_s += graphviz_color[it2.route];
-            node_s += "\n";
-            subgraph += node_s + "]\n";
-        }
-        if(dist(it.aliases.begin()->pos, pos) < this->close_enough){
-            subgraph += "Tircgo[pos = \"" + to_string(coor.x / max_x) + "," + to_string(coor.y / max_y) + "!\"\n";
-            subgraph += "label = Tircgo\n";
-            subgraph += "color = khaki4\n";
-            subgraph += "]\n";
-        }
-        subgraph += "}\n";
-        digraph += subgraph;
-    }
-    for(int i = 0; i < this->rn_img.size(); i++){
-        for(int j = 1; j < this->rn_img[i].size(); j++){
-            digraph += "R" + to_string(i) + "N" + to_string(j - 1) +
-                " -- " + "R" + to_string(i) + "N" + to_string(j) + " ";
-            for(auto it : ((this->graph).edges)[this->rn_img[i][j - 1]]){
-                if(it.dst == this->rn_img[i][j]){
-                    digraph += "[label = " + to_string(it.w) + "]\n";
-                    break;
-                }
-            }
-        }
-        digraph += "\n";
-    }
-    digraph += "}";
-    return digraph;
-}
 void Controller::runtime_vars_mgr(bool _flag)
 {
     if(_flag == RUNTIME_VARS_SET){ // get all input signals
@@ -463,7 +354,6 @@ bool Controller::priviledged_instr()
             break;
         case OPCODE_AUTO_FINISH:
             this->stage_bm &= (~MODE_AUTO);
-            // this->sch_srv.shutdown();
             ROS_WARN("Finish auto mode, script has no effect now");
         default:
             ret = false;

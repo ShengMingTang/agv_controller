@@ -24,7 +24,7 @@ namespace tircgo
         ~UART();
         RobotInvoke invoke(const int16_t _op, std::vector<int16_t> _args);
         bool is_invoke_valid(const RobotInvoke &_srv);
-        list<tircgo_controller::scheduleActionGoal::_goal_type> get_cmds();
+        string get_cmds();
         void clear();
     private:
         ros::NodeHandle n;

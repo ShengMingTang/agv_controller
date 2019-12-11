@@ -145,6 +145,12 @@ using namespace std;
 #define ROBOT_SCHEDULER_CONTROLLER "robot_scheduler_controller" // scheduler send to controller
 #define ROBOT_CONTROLLER_SCHEDULER "robot_controller_scheduler" // controller sned to scheduler
 
+/* controller talk */
+#define ROBOT_CONTROLLER_TALK_OUTER "robot_wifi_controller_talk_outer"
+#define ROBOT_CONTROLLER_TALK_INNER "robot_wifi_controller_talk_inner"
+
+#define ROBOT_CONTROLLER_AGENT "to_agent"
+#define ROBOT_AGENT_CONTROLLER "from_agent"
 namespace tircgo
 {
 }

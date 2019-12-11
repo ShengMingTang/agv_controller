@@ -53,7 +53,7 @@ RobotInvoke UART::invoke(const int16_t _op, std::vector<int16_t> _args)
         switch (_op)
         {
             case OPCODE_DRIVE:
-                _args.push_back(static_cast<int16_t>(t * 1000));
+                _args.push_back(static_cast<int16_t>(t * 100));
                 if(this->cmds.empty()){
                     t = 0;
                 }
@@ -73,7 +73,7 @@ RobotInvoke UART::invoke(const int16_t _op, std::vector<int16_t> _args)
                 this->cmds.push_back(goal);
                 this->lastdriveTime = ros::Time::now();
                 break;
-            case OPCODE_CALIB:
+            // case OPCODE_CALIB:
             case OPCODE_TRAIN_BEGIN:
             case OPCODE_SETNODE:
             case OPCODE_TRAIN_FINISH:
@@ -149,21 +149,45 @@ bool UART::is_invoke_valid(const RobotInvoke  &_srv)
     }
     return ret;
 }
-list<tircgo_controller::scheduleActionGoal::_goal_type> UART::get_cmds()
+string UART::get_cmds()
 {
     stringstream ss;
+    ss << "UART_history\n";
     for(auto it : this->cmds){
-        ss << (char)it.act << " ";
-        for(auto it2 : it.args){
-            ss << it2 << " ";
+        switch (it.act)
+        {
+            case OPCODE_DRIVE:
+                ss << "Drive";
+                break;
+            case OPCODE_CALIB:
+                ss << "Calib";
+                break;
+            case OPCODE_TRAIN_BEGIN:
+                ss << "Train_begin";
+                break;
+            case OPCODE_SETNODE:
+                ss << "SetNode";
+                break;
+            case OPCODE_TRAIN_FINISH:
+                ss << "Train_finish";
+                break;
+            default:
+                break;
         }
-        if(it.act == OPCODE_TRAIN_FINISH){
-            ss << "\n --------------------- ";
+        ss << "(";
+        for(auto it2 = it.args.begin(); it2 != it.args.end(); it2++){
+            ss << *it2;
+            if(next(it2) != it.args.end()){
+                ss << ",";
+            }
         }
+        ss << ")";
         ss << "\n";
+        // if(it.act == OPCODE_TRAIN_FINISH){
+            // ss << "#####\n";
+        // }
     }
-    ROS_INFO("cmds : %s", ss.str().c_str());
-    return this->cmds;
+    return ss.str();
 }
 void UART::clear()
 {

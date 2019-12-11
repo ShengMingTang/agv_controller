@@ -1,4 +1,148 @@
 #include "Controller.h"
+
+/* subsriber to track status */
+void Controller::status_tracking(const RobotStatus::ConstPtr& _msg)
+{
+    if(_msg->is_activated){
+        this->mode = _msg->now_mode;
+        this->stage_bm |= _msg->now_mode;
+        switch (this->mode)
+        {
+            case MODE_TRAINING:
+                this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_G, DEVICE_LED_OFF, 1});
+                this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_Y, DEVICE_LED_ON, 1});
+                break;
+            case MODE_WORKING:
+                this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_Y, DEVICE_LED_OFF, 1});
+                this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_G, DEVICE_LED_ON, 1});
+            default:
+                break;
+        }
+        if(_msg->tracking_status_reply.is_activated){
+            this->tracking_status = _msg->tracking_status_reply.reply;
+            switch (this->tracking_status)
+            {
+                case TRACKING_STATUS_NONE:
+                case TRACKING_STATUS_NORMAL:
+                    break;
+                case TRACKING_STATUS_ARRIVAL:
+                    this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_Y, DEVICE_LED_ON, 1});
+                    ROS_INFO("Arrival on target");
+                    break;
+                default:
+                    this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_Y, DEVICE_LED_OFF, 1});
+                    break;
+            }
+        }
+        else if(this->mode & MODE_WORKING){
+            ROS_WARN("Tracking_status_reply not activated");
+        }
+        if(_msg->lidar_level_reply.is_activated){
+            this->lidar_levels = _msg->lidar_level_reply.level_reply;
+        }
+        else{
+            ROS_WARN("Lidar_level_reply not activated");
+        }
+    }
+    else{
+        ROS_ERROR("RobotStatus not activated");
+    }
+}
+/* echo status */
+void Controller::monitor_display() const
+{
+    stringstream ss;
+    char buff[150];
+    auto coor = this->pose_tracer.get_coor();
+    sprintf(buff, "mode:%d, %d, trk:%d, pos:(%+.1f,%+.1f %+.1f), v:<%+2d,%+2d>, L:[%d,%d,%d,%d], Trn{%d, %d}, Tar<%d,%d>",
+                this->mode, this->stage_bm,
+                this->tracking_status,
+                coor.x, coor.y, (coor.w) / 3.14159 * 180,
+                this->pose_tracer.get_vel()[0], this->pose_tracer.get_vel()[1],
+                this->lidar_levels[0], this->lidar_levels[1], this->lidar_levels[2], this->lidar_levels[2],
+                this->nd_training.route, this->nd_training.node,
+                this->nd_target.route, this->nd_target.node
+                );
+    std_msgs::String msg;
+    msg.data = string(buff);
+    this->monitor.publish(msg);
+}
+
+/* dumps graph to string*/
+string Controller::dumps_graph()
+{
+    const char graphviz_color[5][20] = {"indianred", "orange3", "yellow3", "green3", "lightblue3"};
+    auto coor = this->pose_tracer.get_coor(); 
+    geometry_msgs::Point pos;
+    pos.x = coor.x, pos.y = coor.y;
+    string digraph;
+    digraph += "graph G {\n";
+    digraph += "rankdir = LR;\n";
+    digraph += "#Tircgo[pos = \"" + to_string(coor.x) + "," + to_string(coor.y) + "!\"]\n";
+    // subgraph
+    int subgraph_count = 0;
+    double max_x = 0, max_y = 0;
+    for(auto it : this->graph.vertices){
+        if(abs(it.pos.x) > max_x)
+            max_x = abs(it.pos.x);
+        if(abs(it.pos.y) > max_y)
+            max_y = abs(it.pos.y);
+    }
+    if(abs(coor.x) > max_x)
+        max_x = abs(coor.x);
+    if(abs(coor.y) > max_y)
+        max_y = abs(coor.y);
+    if(max_x == 0)
+        max_x = 1;
+    if(max_y == 0)
+        max_y = 1;
+    for(auto it : this->graph.vertices){
+        string subgraph;
+        string name("cluster_");
+        name += (to_string(subgraph_count));
+        subgraph_count++;
+        subgraph += "subgraph " + name + "{\n";
+        subgraph += "style = filled;\n";
+        subgraph += "color = lightgrey;\n";
+        subgraph += "node [style=filled,color=white];\n";
+        for(auto it2 : it.aliases){
+            string node_s;
+            string node_name;
+            node_name += "R" + std::to_string(it2.route) + "N" + std::to_string(it2.node);
+            node_s +=  node_name+ "[\n";
+            node_s += "pos = \"" + std::to_string(it2.pos.x / max_x) + "," + std::to_string(it2.pos.y / max_y) + "!\"\n";
+            node_s += "label = " + node_name + "\n";
+            node_s += "color = ";
+            node_s += graphviz_color[it2.route];
+            node_s += "\n";
+            subgraph += node_s + "]\n";
+        }
+        if(dist(it.aliases.begin()->pos, pos) < this->close_enough){
+            subgraph += "Tircgo[pos = \"" + to_string(coor.x / max_x) + "," + to_string(coor.y / max_y) + "!\"\n";
+            subgraph += "label = Tircgo\n";
+            subgraph += "color = khaki4\n";
+            subgraph += "]\n";
+        }
+        subgraph += "}\n";
+        digraph += subgraph;
+    }
+    for(int i = 0; i < this->rn_img.size(); i++){
+        for(int j = 1; j < this->rn_img[i].size(); j++){
+            digraph += "R" + to_string(i) + "N" + to_string(j - 1) +
+                " -- " + "R" + to_string(i) + "N" + to_string(j) + " ";
+            for(auto it : ((this->graph).edges)[this->rn_img[i][j - 1]]){
+                if(it.dst == this->rn_img[i][j]){
+                    digraph += "[label = " + to_string(it.w) + "]\n";
+                    break;
+                }
+            }
+        }
+        digraph += "\n";
+    }
+    digraph += "}";
+    return digraph;
+}
+/* wifi */
 bool Controller::nodeocp_serve(WifiNodeOcp::Request &_req, WifiNodeOcp::Response &_res)
 {
     _res.is_ocp = !( (this->ocp_vptr->aliases.find(_req.q_rn)) == this->ocp_vptr->aliases.end() );
@@ -76,19 +220,17 @@ bool Controller::is_target_ocp(const VertexType *vptr)
         return false;
     }
 }
+/* scheduler */
 void Controller::execute_schedule(const tircgo_controller::scheduleGoalConstPtr &_goal)
 {
-    ros::Rate r(1);
+    ros::Rate r(0.2);
     bool success = true;
 
     sch_feedback.feedback.clear();
     sch_feedback.args.clear();
-    
-    if(!(this->stage_bm & MODE_AUTO)){
-        success = false;
-        this->sch_res.res = "Not done";
-    }
-    if(success){
+
+    // controller itself can't distinguish teach or auto
+    if((this->stage_bm & MODE_AUTO) || (this->stage_bm & MODE_AGENT)){
         ROS_INFO("Action : %c taken", _goal->act);
         stringstream ss;
         ss << "Args : ";
@@ -103,44 +245,98 @@ void Controller::execute_schedule(const tircgo_controller::scheduleGoalConstPtr 
             bool valid = this->add_target(nd);
             if(valid){
                 this->sch_feedback.feedback = "take";
+                this->sch_srv.publishFeedback(this->sch_feedback);
+                /* check finished for whole nodes path*/
+                while(this->stage_bm & MODE_AUTO && !this->work_list.empty()){
+                    this->trigger_working();
+                    // Polling finished for the current small target
+                    while(this->stage_bm & MODE_AUTO && (!this->working())){
+                        if(this->sch_srv.isPreemptRequested() || !ros::ok() || !(this->stage_bm & MODE_AUTO)){
+                            ROS_INFO("Auto mode preempted");
+                            this->sch_srv.setPreempted();
+                            success = false;
+                            break;
+                        }
+                        r.sleep();
+                    }
+                }
             }
             else{
                 this->sch_feedback.feedback = "Invalid";
+                this->sch_srv.publishFeedback(this->sch_feedback);
                 success = false;
             }
-            this->sch_srv.publishFeedback(this->sch_feedback);
 
-            /* check finished for whole nodes path*/
-            while(this->stage_bm & MODE_AUTO && !this->work_list.empty()){
-                this->trigger_working();
-                // Polling finished for the current small target
-                while(this->stage_bm & MODE_AUTO && (!this->working())){
-                    if(this->sch_srv.isPreemptRequested() || !ros::ok() || !(this->stage_bm & MODE_AUTO)){
-                        ROS_INFO("Auto mode preempted");
-                        this->sch_srv.setPreempted();
-                        success = false;
-                        break;
-                    }
-                    r.sleep();
-                }
-            }
         }
         else if(_goal->act == OPCODE_DELAY){
-            ros::Time start_time = ros::Time::now();
-            if(_goal->args.size() > 0){
-                double t = (ros::Time::now() - start_time).toSec() * 10;
-                while(static_cast<int16_t>(t) < _goal->args[0]){
-                    // delay
-                    if(this->sch_srv.isPreemptRequested() || !ros::ok()){
-                        ROS_INFO("Auto mode preempted");
-                        this->sch_srv.setPreempted();
-                        success = false;
-                        break;
-                    }
-                    r.sleep();
+            this->drive({0, 0});
+            ros::Time t1 = ros::Time::now();
+            double t = (ros::Time::now() - t1).toSec() * 100;
+            while(static_cast<int16_t>(t) < _goal->args[0]){
+                // delay
+                if(this->sch_srv.isPreemptRequested() || !ros::ok()){
+                    ROS_INFO("Auto mode preempted");
+                    this->sch_srv.setPreempted();
+                    success = false;
+                    break;
                 }
+                r.sleep();
             }
         }
+        else if(_goal->act == OPCODE_DRIVE){
+            ros::Time t1 = ros::Time::now();
+            double t;
+            do{
+                this->drive({_goal->args[0], _goal->args[1]});
+                t = (ros::Time::now() - t1).toSec();
+                if(this->sch_srv.isPreemptRequested() || !ros::ok()){
+                    ROS_INFO("Auto mode preempted");
+                    this->sch_srv.setPreempted();
+                    success = false;
+                    break;
+                }
+            }while(static_cast<int16_t>(t) * 100 < _goal->args[2]);
+        }
+        else if(_goal->act == OPCODE_TRAIN_BEGIN){
+            success = this->train_begin();
+            if(!success){
+                ROS_ERROR("Train begin failed");
+            }
+            if(this->sch_srv.isPreemptRequested() || !ros::ok()){
+                ROS_INFO("Auto mode preempted");
+                this->sch_srv.setPreempted();
+                success = false;
+            }
+        }
+        else if(_goal->act == OPCODE_SETNODE){
+            success = this->set_node();
+            if(!success){
+                ROS_ERROR("Direct SetNode failed");
+            }
+            if(this->sch_srv.isPreemptRequested() || !ros::ok()){
+                ROS_INFO("Auto mode preempted");
+                this->sch_srv.setPreempted();
+                success = false;
+            }
+        }
+        else if(_goal->act == OPCODE_TRAIN_FINISH){
+            success = this->train_finish();
+            if(!success){
+                ROS_ERROR("Train finish failed");
+            }
+            if(this->sch_srv.isPreemptRequested() || !ros::ok()){
+                ROS_INFO("Auto mode preempted");
+                this->sch_srv.setPreempted();
+                success = false;
+            }
+        }
+        else{
+            success = false;
+            ROS_ERROR("Unknown Action, ignored");
+        }
+    }
+    else{
+        success = false;
     }
     if(success){
         this->sch_res.res = "done";
@@ -148,6 +344,8 @@ void Controller::execute_schedule(const tircgo_controller::scheduleGoalConstPtr 
         this->sch_srv.setSucceeded(this->sch_res);
     }
     else{
+        this->sch_res.res = "failed";
+        // ROS_INFO("Action : %c failed\n", _goal->act);
         this->sch_srv.setAborted(this->sch_res);
     }
 }

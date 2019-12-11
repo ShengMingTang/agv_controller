@@ -7,8 +7,12 @@ void Controller::loopOnce()
 {
     // loopOnce front
     this->runtime_vars_mgr(RUNTIME_VARS_SET);
-    // loopOnce body (User-Custom space)
-    if(!this->priviledged_instr() && !(this->stage_bm & MODE_AUTO)){
+    
+    // not joystick controllable space
+    if(!this->priviledged_instr() && 
+        !(this->stage_bm & MODE_AUTO) && 
+        !(this->stage_bm & MODE_AGENT))
+    {
         switch(this->mode){
             case MODE_IDLE:
                 this->idle();
@@ -51,31 +55,11 @@ void Controller::idle()
                 this->calibration();
             }
             break;
-        case OPCODE_TRAIN_BEGIN:{
-            if(this->stage_bm & MODE_CALIB){
-                vector<int16_t> train_args = {this->nd_training.route};
-                this->nd_training.node = -1;
-                srv = this->base_driver.invoke(OPCODE_TRAIN_BEGIN, train_args);
-                if(this->base_driver.is_invoke_valid(srv)){
-                    // flush all data for route nd.training.route
-                    this->graph.erase(this->rn_img[this->nd_training.route]);
-                    this->rn_img[this->nd_training.route].clear();
-                    this->drive({0, 0});
-
-                    ROS_WARN("First node is not automatically set!");
-                    ROS_WARN("Please set first node manually before any movement");
-
-                    #ifdef ROBOT_CONTROLLER_TEST
-                        this->mode = MODE_TRAINING;
-                        this->stage_bm |= MODE_TRAINING;
-                    #endif
-                }
-            }
-            else{
-                ROS_ERROR("Not Calibed but Want to enter Training");
+        case OPCODE_TRAIN_BEGIN:
+            if(!this->train_begin()){
+                ROS_ERROR("Train begin failed");
             }
             break;
-        }
         /* work manually, just push node here*/
         case OPCODE_WORK_BEGIN:
             this->add_target(this->nd_target);
@@ -113,27 +97,8 @@ void Controller::training()
             }
             break;
         case OPCODE_TRAIN_FINISH:
-            if(this->rn_img[this->nd_training.route].size() >= TRAIN_NODE_MIN){
-                srv = this->base_driver.invoke(OPCODE_TRAIN_FINISH, vector<int16_t>());
-                if(this->base_driver.is_invoke_valid(srv)){
-                    #ifdef ROBOT_CONTROLLER_TEST
-                        this->mode = MODE_IDLE;
-                    #endif
-                    ROS_WARN("Once Trained, lock motor if not in tranining mode !");
-                    ROS_WARN("Note that this piece of info only appears once at the end of every training");
-                    this->nd_training.route = (this->nd_training.route + 1) % TRAIN_ROUTE_MAX;
-                    this->nd_training.node = -1;
-
-                    auto s = this->dumps_graph();
-                    ROS_WARN("\n%s", s.c_str());
-                }
-                else{
-                    ROS_ERROR("SetNode Failed when finishing training");
-                    ROS_ERROR("Train finish operation rejected");
-                }
-            }
-            else{
-                ROS_INFO("Should set at least 2 nodes before finishing training, invokation rejected");
+            if(!this->train_finish()){
+                ROS_ERROR("Train finish failed");
             }
             break;
         default:
@@ -151,7 +116,7 @@ void Controller::training()
 */
 bool Controller::working()
 {
-    this->mutex.lock();
+    this->work_mutex.lock();
 
     #ifdef ROBOT_CONTROLLER_TEST
         ros::Rate r(1);
@@ -172,7 +137,7 @@ bool Controller::working()
                 this->mode = MODE_IDLE;
             #endif
             
-            this->mutex.unlock();
+            this->work_mutex.unlock();
             return true;
         }
     }
@@ -183,7 +148,7 @@ bool Controller::working()
             ROS_INFO("Stop working due to unsafe condition");
         }
     }
-    this->mutex.unlock();
+    this->work_mutex.unlock();
     return false;
 }
 bool Controller::set_node()
@@ -269,6 +234,7 @@ bool Controller::set_node()
 }
 bool Controller::add_target(const RouteNode &_nd)
 {
+    this->work_mutex.lock();
     if(this->stage_bm & MODE_TRAINING){
         if(this->is_target_valid(_nd)){
             this->work_list.clear();
@@ -292,13 +258,16 @@ bool Controller::add_target(const RouteNode &_nd)
         }
         else{
             ROS_ERROR("Target out of range, plz reset");
+            this->work_mutex.unlock();
             return false;
         }
     }
     else{
         ROS_ERROR("Not trained but want to add target");
+        this->work_mutex.unlock();
         return false;
     }
+    this->work_mutex.unlock();
     return true;
 }
 /* Find the RouteNode on the same path as the curret one */
@@ -323,6 +292,66 @@ const RouteNode Controller::get_affinity_vertex(const VertexType* _curr, const V
     }
     return ret;
 }
+bool Controller::train_begin()
+{
+    this->train_mutex.lock();
+    if(this->stage_bm & MODE_CALIB){
+        vector<int16_t> train_args = {this->nd_training.route};
+        this->nd_training.node = -1;
+        auto srv = this->base_driver.invoke(OPCODE_TRAIN_BEGIN, train_args);
+        if(this->base_driver.is_invoke_valid(srv)){
+            // flush all data for route nd.training.route
+            this->graph.erase(this->rn_img[this->nd_training.route]);
+            this->rn_img[this->nd_training.route].clear();
+            this->drive({0, 0});
+
+            ROS_WARN("First node is not automatically set!");
+            ROS_WARN("Please set first node manually before any movement");
+
+            #ifdef ROBOT_CONTROLLER_TEST
+                this->mode = MODE_TRAINING;
+                this->stage_bm |= MODE_TRAINING;
+            #endif
+            this->train_mutex.unlock();
+            return true;
+        }
+    }
+    else{
+        ROS_ERROR("Not Calibed but Want to enter Training");
+    }
+    this->train_mutex.unlock();
+    return false;
+}
+bool Controller::train_finish()
+{
+    this->train_mutex.lock();
+    if(this->rn_img[this->nd_training.route].size() >= TRAIN_NODE_MIN){
+        auto srv = this->base_driver.invoke(OPCODE_TRAIN_FINISH, vector<int16_t>());
+        if(this->base_driver.is_invoke_valid(srv)){
+            #ifdef ROBOT_CONTROLLER_TEST
+                this->mode = MODE_IDLE;
+            #endif
+            ROS_WARN("Once Trained, lock motor if not in tranining mode !");
+            ROS_WARN("Note that this piece of info only appears once at the end of every training");
+            this->nd_training.route = (this->nd_training.route + 1) % TRAIN_ROUTE_MAX;
+            this->nd_training.node = -1;
+
+            auto s = this->dumps_graph();
+            ROS_WARN("\n%s", s.c_str());
+            this->train_mutex.unlock();
+            return true;
+        }
+        else{
+            ROS_ERROR("SetNode Failed when finishing training");
+            ROS_ERROR("Train finish operation rejected");
+        }
+    }
+    else{
+        ROS_INFO("Should set at least 2 nodes before finishing training, invokation rejected");
+    }
+    this->train_mutex.unlock();
+    return false;
+}
 /* 
     trigger working if work_list is not empty 
     return true if the robot has entered working
@@ -330,7 +359,7 @@ const RouteNode Controller::get_affinity_vertex(const VertexType* _curr, const V
 */
 bool Controller::trigger_working()
 {
-    this->mutex.lock();
+    this->work_mutex.lock();
     if(this->stage_bm & MODE_TRAINING && !this->work_list.empty()){
         // check if there were jobs to do
         VertexType *next_vptr = this->work_list.front();
@@ -347,7 +376,7 @@ bool Controller::trigger_working()
                     this->mode = MODE_WORKING;
                     this->stage_bm |= MODE_WORKING;
                 #endif
-                this->mutex.unlock();
+                this->work_mutex.unlock();
                 return true;
             }
         }
@@ -355,5 +384,5 @@ bool Controller::trigger_working()
             ROS_INFO("Want to work but target is occupied, waiting");
         }
     }
-    this->mutex.unlock();
+    this->work_mutex.unlock();
 }
