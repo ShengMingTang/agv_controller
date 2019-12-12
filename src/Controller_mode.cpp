@@ -112,7 +112,8 @@ void Controller::training()
     All wokring-related data will be kept.
     Working will resume as soon as emergency is removed
 
-    return true if working is finished, else false
+    return true then finish working or not in working, escape
+    false otherwise then keep trying
 */
 bool Controller::working()
 {
@@ -123,8 +124,34 @@ bool Controller::working()
         r.sleep();
         this->tracking_status = TRACKING_STATUS_ARRIVAL;
     #endif
+    if(this->mode != MODE_WORKING){ // finished elsewhere
+        ROS_WARN("Nont in working mode but enter working fn, synchronization issue, Escape");
+        return true;
+    }
+    else if(this->op == OPCODE_WORK_FINISH){
+        auto srv = this->base_driver.invoke(OPCODE_WORK_FINISH, vector<int16_t>());
+        if(this->base_driver.is_invoke_valid(srv)){
+            
+            this->ocp_vptr = this->work_list.front();
+            this->pose_tracer.set_coor(this->ocp_vptr->pos.x, this->ocp_vptr->pos.y);
+            this->work_list.pop_front();
 
-    if(this->tracking_status == TRACKING_STATUS_ARRIVAL){
+            #ifdef ROBOT_CONTROLLER_TEST
+                this->tracking_status = TRACKING_STATUS_NORMAL;
+                this->mode = MODE_IDLE;
+            #endif
+            
+            ROS_INFO("Finish Working manually");
+            this->work_mutex.unlock();
+            return true;
+        }
+        else{
+            ROS_INFO("Finish Working manually failed, nothing changed");
+            this->work_mutex.unlock();
+            return false;
+        }
+    }
+    else if(this->tracking_status == TRACKING_STATUS_ARRIVAL){
         auto srv = this->base_driver.invoke(OPCODE_WORK_FINISH, vector<int16_t>());
         if(this->base_driver.is_invoke_valid(srv)){
             
@@ -140,16 +167,29 @@ bool Controller::working()
             this->work_mutex.unlock();
             return true;
         }
+        else{
+            ROS_ERROR("Arrival but invoke Work finish Error, keep trying");
+            this->work_mutex.unlock();
+            return false;
+        }
     }
     else if(!this->check_safety()){ // not safe, stop current work, call help
         auto srv = this->base_driver.invoke(OPCODE_WORK_FINISH, vector<int16_t>());
         if(this->base_driver.is_invoke_valid(srv)){
             auto sig_srv = this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_3L_2S, 1});
             ROS_INFO("Stop working due to unsafe condition");
+            this->work_mutex.unlock();
+            return false;
+        }
+        else{
+            ROS_ERROR("Working but safety issue not satisfied, keep trying");
+            return false;
         }
     }
-    this->work_mutex.unlock();
-    return false;
+    else{
+        this->work_mutex.unlock();
+        return false;
+    }
 }
 bool Controller::set_node()
 {

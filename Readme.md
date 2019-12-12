@@ -12,16 +12,18 @@
 ## If running a node any below with nonempty cmd line args, the first one must be its name [mendatory]
 ## Use "" to pass an empty string to the process
 
-## tircgo_controller/ticgo_c... for controller node
+## tircgo_controller/ticgo_controller_node [name]
 > main control
-## tircgo_controller/Agent.py
+## tircgo_controller/Agent.py [name]
 > for UART history
-## tircgo_controller/Scheduler.py
+## tircgo_controller/Scheduler.py [name]
 > for Schedule, written in setup() and loop() using shot hand function above
 
 # For testing
-## tircgo_controller/Imm_wifi.py
+## tircgo_controller/Imm_wifi.py [from, to]
 > Emulating wifi, the first 2 args is the sender and the receiver, matched with the one you launch controller with
+## tircgo_controller/Imm_joy.py [name]
+> Separating single joystick input to separate controllers
 
 ```python
 # In tircgo_controller/src/scripts/Scheduler.py

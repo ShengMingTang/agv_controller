@@ -50,31 +50,31 @@ class Agent():
             success = True if self.clt.get_result() != None and self.clt.get_result().res == 'done' else False
             if not success:
                 r.sleep()
-        rospy.loginfo('Status done')
+        rospy.loginfo('[Agent] Status done')
         return
     def Work(self, *args):
         self.goal = tircgo_controller.msg.scheduleGoal(act = 76, args = args)
-        rospy.loginfo('Go to R%sN%s' % (args[0], args[1]))
+        rospy.loginfo('[Agent] Go to R%sN%s' % (args[0], args[1]))
         self.Wait()
     def Drive(self, *args):
         self.goal = tircgo_controller.msg.scheduleGoal(act = 70, args = args)
-        rospy.loginfo('Drive at %s, %s for %s' % (args[0], args[1], args[2]))
+        rospy.loginfo('[Agent] Drive at %s, %s for %s' % (args[0], args[1], args[2]))
         self.Wait()
     def Delay(self, *args):
         self.goal = tircgo_controller.msg.scheduleGoal(act = 56, args = args)
-        rospy.loginfo('Delay for %s cs' % (args[0]))
+        rospy.loginfo('[Agent] Delay for %s cs' % (args[0]))
         self.Wait()
     def Train_begin(self, *args):
         self.goal = tircgo_controller.msg.scheduleGoal(act = 73, args = args)
-        rospy.loginfo('Train on %s' % (args[0]))
+        rospy.loginfo('[Agent] Train on %s' % (args[0]))
         self.Wait()
     def SetNode(self, *args):
         self.goal = tircgo_controller.msg.scheduleGoal(act = 74, args = args)
-        rospy.loginfo('SetNode Here')
+        rospy.loginfo('[Agent] SetNode Here')
         self.Wait()
     def Train_finish(self, *args):
         self.goal = tircgo_controller.msg.scheduleGoal(act = 75, args = args)
-        rospy.loginfo('Train Finished')
+        rospy.loginfo('[Agent] Train Finished')
         self.Wait()
 
 
@@ -83,12 +83,12 @@ if __name__ == '__main__':
         if len(sys.argv) == 2:
             rospy.init_node(sys.argv[1] + 'agent_py')
             master = Agent(sys.argv[1])
-            rospy.loginfo('Wait for controller to join')
+            rospy.loginfo('[Agent] Wait for controller to join')
             rospy.spin()
         else:
             rospy.init_node('agent_py')
             master = Agent()
-            rospy.loginfo('Wait for controller to join')
+            rospy.loginfo('[Agent] Wait for controller to join')
             rospy.spin()
     except rospy.ROSInterruptException:
         print("program interrupted before completion", file=sys.stderr)

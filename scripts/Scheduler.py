@@ -25,31 +25,31 @@ class Scheduler():
             success = True if self.clt.get_result() != None and self.clt.get_result().res == 'done' else False
             if not success:
                 r.sleep()
-        rospy.loginfo('Status done')
+        rospy.loginfo('[Scheduler] Status done') 
         return
     def Work(self, *args):
         self.goal = tircgo_controller.msg.scheduleGoal(act = 76, args = args)
-        rospy.loginfo('Go to R%sN%s' % (args[0], args[1]))
+        rospy.loginfo('[Scheduler] Go to R%sN%s' % (args[0], args[1]))
         self.Wait()
     def Drive(self, *args):
         self.goal = tircgo_controller.msg.scheduleGoal(act = 70, args = args)
-        rospy.loginfo('Drive at %s, %s for %s' % (args[0], args[1], args[2]))
+        rospy.loginfo('[Scheduler] Drive at %s, %s for %s' % (args[0], args[1], args[2]))
         self.Wait()
     def Delay(self, *args):
         self.goal = tircgo_controller.msg.scheduleGoal(act = 56, args = args)
-        rospy.loginfo('Delay for %s cs' % (args[0]))
+        rospy.loginfo('[Scheduler] Delay for %s cs' % (args[0]))
         self.Wait()
     def Train_begin(self, *args):
         self.goal = tircgo_controller.msg.scheduleGoal(act = 73, args = args)
-        rospy.loginfo('Train on %s' % (args[0]))
+        rospy.loginfo('[Scheduler] Train on %s' % (args[0]))
         self.Wait()
     def SetNode(self, *args):
         self.goal = tircgo_controller.msg.scheduleGoal(act = 74, args = args)
-        rospy.loginfo('SetNode Here')
+        rospy.loginfo('[Scheduler] SetNode Here')
         self.Wait()
     def Train_finish(self, *args):
         self.goal = tircgo_controller.msg.scheduleGoal(act = 75, args = args)
-        rospy.loginfo('Train Finished')
+        rospy.loginfo('[Scheduler] Train Finished')
         self.Wait()
 
 def Work(r, n):
@@ -72,13 +72,14 @@ def loop():
 
 if __name__ == '__main__':
     try:
+        master = None
         if len(sys.argv) == 2:
             rospy.init_node(sys.argv[1] + 'scheduler_py')
             master = Scheduler(sys.argv[1])
         else:
             rospy.init_node('scheduler_py')
             master = Scheduler()
-        rospy.loginfo('Wait for controller to join')
+        rospy.loginfo('[Scheduler] Wait for controller to join')
         setup()
         while not rospy.is_shutdown():
             loop()

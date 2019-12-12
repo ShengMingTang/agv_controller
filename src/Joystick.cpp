@@ -1,7 +1,7 @@
 #include "Joystick.h"
 Joystick::Joystick(const string& _parent_frame_id)
 :frame_id {_parent_frame_id + "/joystick"}
-,sub {this->n.subscribe(JOYSTICKIO_TOPIC, MSG_QUE_SIZE, &Joystick::callback, this)}
+,sub {this->n.subscribe((_parent_frame_id + JOYSTICKIO_TOPIC).c_str(), MSG_QUE_SIZE, &Joystick::callback, this)}
 ,last_press_t {ros::Time::now()}
 {
     ROS_INFO("Joystick constructed");
