@@ -7,6 +7,10 @@
 ## sudo chmod a+rw /dev/input/js0
 ## sudo chmod 666 /dev/ttyUSB0
 ## source tircgo/devel/setup.bash
+### rosrun tircgo_controller tircgo_controller_node ""
+### rosrun tircgo_uart tircgo_uart_encoder_decoder_node
+### rosrun tircgo_controller Agent.py ""
+### rosrun tircgo_controller Scheduler.py ""
 
 # nodes available
 ## If running a node any below with nonempty cmd line args, the first one must be its name [mendatory]

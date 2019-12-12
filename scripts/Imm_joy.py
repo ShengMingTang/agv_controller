@@ -16,12 +16,14 @@ class Imm_joy():
         self.pub.publish(data)    
 if __name__ == '__main__':
     try:
-        if len(sys.argv) == 2:
+        print(len(sys.argv))
+        if len(sys.argv) > 1:
             rospy.init_node(sys.argv[1] + 'imm_joy', anonymous=True)
-            rospy.loginfo('Build an immediate node from joy to %s' % (sys.argv[1]))
+            rospy.loginfo('[Imm_joy] Build an immediate node from joy to %s' % (sys.argv[1]))
             master = Imm_joy(sys.argv[1])
+            rospy.spin()
         else:
+            rospy.init_node('Dummy_imm_joy', anonymous=True)
             rospy.loginfo('Imm_joy only takes exactly one cmd arg, the name of the receiver')
-        rospy.spin()
     except rospy.ROSInterruptException:
         print("program interrupted before completion", file=sys.stderr)

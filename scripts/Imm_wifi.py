@@ -15,7 +15,7 @@ class Imm_wifi():
         self.pub.publish(data)    
 if __name__ == '__main__':
     try:
-        if len(sys.argv) == 3:
+        if len(sys.argv) >= 3:
             rospy.init_node(sys.argv[1] + sys.argv[2] + 'imm_wifi', anonymous=True)
             rospy.loginfo('Build an immediate node from %s to %s' % (sys.argv[1], sys.argv[2]))
             master = Imm_wifi(sys.argv[1], sys.argv[2])

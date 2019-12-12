@@ -29,7 +29,6 @@ class Agent():
             for cmd in tokens[1:]:
                 print(cmd)
             for cmd in tokens[1:]:
-                if cmd != '':
                     eval('self.' + cmd)
         else:
             return
@@ -80,7 +79,7 @@ class Agent():
 
 if __name__ == '__main__':
     try:
-        if len(sys.argv) == 2:
+        if len(sys.argv) >= 2:
             rospy.init_node(sys.argv[1] + 'agent_py')
             master = Agent(sys.argv[1])
             rospy.loginfo('[Agent] Wait for controller to join')
