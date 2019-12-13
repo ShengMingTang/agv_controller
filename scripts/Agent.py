@@ -6,10 +6,13 @@ import actionlib
 import sys
 import tircgo_controller.msg
 import tircgo_msgs.msg
-
+from threading import Thread, Lock
 
 class Agent():
     def __init__(self, id = ''):
+        # mutex
+        self.count = 0
+        self.count_mutex = Lock()
         # controller status
         # talk
         self.talk_pub = rospy.Publisher(id + 'robot_wifi_controller_talk_inner', tircgo_msgs.msg.ControllerTalk, queue_size = 10)
@@ -23,16 +26,25 @@ class Agent():
         
     def listen_callback(self, msg):
         tokens = msg.talk.split('\n')
-        if len(tokens) == 0:
-            return
-        if(tokens[0] == 'UART_history'):
+        if len(tokens) != 0 and tokens[0] == 'UART_history':
+            # atomic operation
+            self.count_mutex.acquire()
+            self.count += 1
+            count = self.count # record this count
+            self.count_mutex.release()
+            # end atomic
+            print(tokens, sep='->')
             for cmd in tokens[1:]:
-                print(cmd)
-            for cmd in tokens[1:]:
+                # atomic
+                self.count_mutex.acquire()
+                thiscount = self.count
+                self.count_mutex.release()
+                # end atomic
+                if count == thiscount:
                     eval('self.' + cmd)
-        else:
-            return
-    
+                else:
+                    break
+        return
     def imm_callback(self, msg):
         self.talk_pub.publish(msg)
         return
@@ -51,6 +63,10 @@ class Agent():
                 r.sleep()
         rospy.loginfo('[Agent] Status done')
         return
+    def Delay(self, *args): # customed opcode
+        self.goal = tircgo_controller.msg.scheduleGoal(act = 56, args = args)
+        rospy.loginfo('[Agent] Delay for %s cs' % (args[0]))
+        self.Wait()
     def Work(self, *args):
         self.goal = tircgo_controller.msg.scheduleGoal(act = 76, args = args)
         rospy.loginfo('[Agent] Go to R%sN%s' % (args[0], args[1]))
@@ -58,10 +74,6 @@ class Agent():
     def Drive(self, *args):
         self.goal = tircgo_controller.msg.scheduleGoal(act = 70, args = args)
         rospy.loginfo('[Agent] Drive at %s, %s for %s' % (args[0], args[1], args[2]))
-        self.Wait()
-    def Delay(self, *args):
-        self.goal = tircgo_controller.msg.scheduleGoal(act = 56, args = args)
-        rospy.loginfo('[Agent] Delay for %s cs' % (args[0]))
         self.Wait()
     def Train_begin(self, *args):
         self.goal = tircgo_controller.msg.scheduleGoal(act = 73, args = args)
@@ -90,4 +102,4 @@ if __name__ == '__main__':
             rospy.loginfo('[Agent] Wait for controller to join')
             rospy.spin()
     except rospy.ROSInterruptException:
-        print("program interrupted before completion", file=sys.stderr)
+        print("[Agent] program interrupted before completion", file=sys.stderr)

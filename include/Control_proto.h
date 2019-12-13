@@ -92,13 +92,8 @@ using namespace std;
 
 /* controller-defined opcode */
 #define OPCODE_NONE '0' 
-#define OPCODE_RT_UP '1' 
-#define OPCODE_RT_DOWN '2' 
-#define OPCODE_ND_UP '3' 
-#define OPCODE_ND_DOWN '4' 
-#define OPCODE_DISPLAY '5'
-#define OPCODE_AUTO_BEGIN '6'
-#define OPCODE_AUTO_FINISH '7'
+#define OPCODE_AUTO '1'
+#define OPCODE_AGENT '2'
 #define OPCODE_DELAY '8'
 
 /* hardware control */

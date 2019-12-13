@@ -20,7 +20,7 @@
 #include "Graph.h"
 #include "tircgo_common.h"
 
-#include "tircgo_uart/RobotStatus.h" // topic header for subscribing to the robot status
+#include "tircgo_uart/RobotStatus.h"
 #include "tircgo_uart/RobotInvoke.h"
 
 #include "tircgo_msgs/WifiNodeOcp.h"
@@ -33,9 +33,6 @@
 #include <actionlib/server/simple_action_server.h>
 #include "tircgo_controller/scheduleAction.h"
 #include "tircgo_msgs/ControllerTalk.h"
-
-#define RUNTIME_VARS_SET 1
-#define RUNTIME_VARS_RESET 0
 
 #define MODE_IDLE (int16_t)1
 #define MODE_POS (int16_t)2
@@ -82,10 +79,9 @@ namespace tircgo
 
         /* API */
         bool drive(vector<int16_t> _vel);
-        bool priviledged_instr();
+        bool priviledged_instr(int16_t _op);
         bool shutdown();
         
-        void calibration();
         
         bool train_begin();
         bool set_node();
@@ -103,17 +99,18 @@ namespace tircgo
         /* Internal Call */
 
         /* operation variation */
-        int16_t decode_opcode();
-        vector<int16_t> decode_drive();
+        int16_t decode_opcode(sensor_msgs::Joy::ConstPtr _ptr);
+        vector<int16_t> decode_drive(sensor_msgs::Joy::ConstPtr _ptr);
         /* Mode related */
-        void idle();
-        void training();
-        bool working();
+        void idle(const int16_t &_op);
+        void calibration(const int16_t &_op);
+        void training(const int16_t &_op);
+        bool working(const int16_t &_op);
         /* Sys related */
-        void runtime_vars_mgr(bool _flag);
+        // void runtime_vars_mgr(bool _flag);
         void clear();
         void log(); // print only
-        bool check_safety(); // tell if near an obstable only
+        bool check_safety(vector<int16_t> _vel); // tell if near an obstable only
 
         /* ---------------------------------------------------------------------------------------------*/
         
@@ -126,7 +123,6 @@ namespace tircgo
         int close_enough = 30;
 
         /* runtime supoort vars */
-        sensor_msgs::Joy::ConstPtr op_ptr;
         int16_t mode = MODE_IDLE; // strictly tracked
         int16_t tracking_status = TRACKING_STATUS_NONE; // strictly tracked
         vector<int16_t> lidar_levels; // strictly tracked
@@ -142,8 +138,6 @@ namespace tircgo
 
         int16_t stage_bm = MODE_IDLE;
         ros::Publisher monitor;
-        vector<int16_t> op_vel;
-        int16_t op = OPCODE_NONE;
         
         /* Graph related */
         Graph<VertexType, EdgeType> graph;

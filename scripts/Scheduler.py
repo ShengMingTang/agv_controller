@@ -66,8 +66,11 @@ def Train_finish(*args):
     eval('master.Train_finish()')
 
 def setup():
+    Work(0, 0)
     return
 def loop():
+    Work(0, 2)
+    Work(0, 0)
     return
 
 if __name__ == '__main__':
@@ -84,4 +87,4 @@ if __name__ == '__main__':
         while not rospy.is_shutdown():
             loop()
     except rospy.ROSInterruptException:
-        print("program interrupted before completion", file=sys.stderr)
+        print("[Scheduler] program interrupted before completion", file=sys.stderr)

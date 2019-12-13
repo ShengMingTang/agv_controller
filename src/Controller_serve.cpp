@@ -6,33 +6,8 @@ void Controller::status_tracking(const RobotStatus::ConstPtr& _msg)
     if(_msg->is_activated){
         this->mode = _msg->now_mode;
         this->stage_bm |= _msg->now_mode;
-        switch (this->mode)
-        {
-            case MODE_TRAINING:
-                this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_G, DEVICE_LED_OFF, 1});
-                this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_Y, DEVICE_LED_ON, 1});
-                break;
-            case MODE_WORKING:
-                this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_Y, DEVICE_LED_OFF, 1});
-                this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_G, DEVICE_LED_ON, 1});
-            default:
-                break;
-        }
         if(_msg->tracking_status_reply.is_activated){
             this->tracking_status = _msg->tracking_status_reply.reply;
-            switch (this->tracking_status)
-            {
-                case TRACKING_STATUS_NONE:
-                case TRACKING_STATUS_NORMAL:
-                    break;
-                case TRACKING_STATUS_ARRIVAL:
-                    this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_Y, DEVICE_LED_ON, 1});
-                    ROS_INFO("Arrival on target");
-                    break;
-                default:
-                    this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_LED_Y, DEVICE_LED_OFF, 1});
-                    break;
-            }
         }
         else if(this->mode & MODE_WORKING){
             ROS_WARN("Tracking_status_reply not activated");
@@ -246,19 +221,26 @@ void Controller::execute_schedule(const tircgo_controller::scheduleGoalConstPtr 
             if(valid){
                 this->sch_feedback.feedback = "take";
                 this->sch_srv.publishFeedback(this->sch_feedback);
-                /* check finished for whole nodes path*/
-                while(this->stage_bm & MODE_AUTO && !this->work_list.empty()){
-                    this->trigger_working();
-                    // Polling finished for the current small target
-                    while(this->stage_bm & MODE_AUTO && (!this->working())){
-                        if(this->sch_srv.isPreemptRequested() || !ros::ok() || !(this->stage_bm & MODE_AUTO)){
-                            ROS_INFO("Auto mode preempted");
-                            this->sch_srv.setPreempted();
-                            success = false;
-                            break;
-                        }
-                        r.sleep();
+                /* check finished for whole nodes path */
+                bool is_empty;
+                this->work_mutex.lock();
+                is_empty = this->work_list.empty();
+                this->work_mutex.unlock();
+                while(this->stage_bm & MODE_AUTO && !is_empty){
+                    if(this->mode != MODE_WORKING){
+                        this->trigger_working();
                     }
+                    this->working(OPCODE_NONE);
+                    if(this->sch_srv.isPreemptRequested() || !ros::ok()){
+                        ROS_INFO("Auto mode preempted");
+                        this->sch_srv.setPreempted();
+                        success = false;
+                        break;
+                    }
+                    r.sleep();
+                    this->work_mutex.lock();
+                    is_empty = this->work_list.empty();
+                    this->work_mutex.unlock();
                 }
             }
             else{

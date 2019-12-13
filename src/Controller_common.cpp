@@ -38,7 +38,7 @@ void Controller::setup(int _argc, char **argv)
             ROS_INFO("|-----------------------------------------------|");
             ROS_INFO("| [-h]: display this msg                        |");
             ROS_INFO("| [-i]: string, identifier of this robot        |");
-            ROS_INFO("| [-f]: int = 20, operating frequency           |");
+            ROS_INFO("| [-f]: int = 5, operating frequency            |");
             ROS_INFO("| [-d]: float = 0.4, drive timeout              |");
             ROS_INFO("| [-p]: int = 60, precision for merging nodes   |");
             ROS_INFO("| [-m]: int = 0, set control (using bitmap)     |");
@@ -105,6 +105,7 @@ void Controller::setup(int _argc, char **argv)
         ROS_INFO("Controller Setup :");
         ROS_INFO("> Only objects in front/back could block, neglect side objects");
         ROS_INFO("> System parameter :");
+        ROS_INFO("> ID = %s", this->frame_id.c_str());
         ROS_INFO("> Control mode : %d", this->control);
         ROS_INFO("> Drive Refresh Time : %.1f", this->drive_timeout);
         ROS_INFO("> Node merge max separation : %d", this->close_enough);
@@ -127,91 +128,99 @@ void Controller::setup(int _argc, char **argv)
     Non-state-transition-related op will be decoded as OPCODE_NONE 
     and get executed in place
 */
-int16_t Controller::decode_opcode()
+int16_t Controller::decode_opcode(sensor_msgs::Joy::ConstPtr _ptr)
 {
     int16_t ret = OPCODE_NONE;
-    if(this->op_ptr){
-        vector<float> axes = this->op_ptr->axes;
-        vector<int32_t> buttons = this->op_ptr->buttons;
-        if(buttons[JOYBUTTON_BACK]){
-            return OPCODE_SHUTDOWN;
+    if(!_ptr)
+        return OPCODE_NONE;
+    vector<float> axes = _ptr->axes;
+    vector<int32_t> buttons = _ptr->buttons;
+    // priviledged, exe in place
+    if(buttons[JOYBUTTON_BACK]){
+        this->shutdown();
+        return OPCODE_SHUTDOWN;
+    }
+    else if(buttons[JOYBUTTON_START]){ // switch auto input
+        if( !(this->stage_bm & MODE_AUTO) && (this->stage_bm & MODE_TRAINING) ){ // enter auto
+            this->stage_bm |= MODE_AUTO;
+            this->sch_srv.start();
+            ROS_WARN("Start auto mode");
         }
-        else if(!(this->stage_bm & MODE_AUTO) && buttons[JOYBUTTON_START]){
-            return OPCODE_AUTO_BEGIN;
+        else if(this->stage_bm & MODE_AUTO){ // leave auto
+            this->stage_bm &= (~MODE_AUTO);
+            ROS_WARN("Finish auto mode, script has no effect now");
         }
-        else if(this->stage_bm & MODE_AUTO && buttons[JOYBUTTON_START]){
-            return OPCODE_AUTO_FINISH;
+        else{
+            ROS_ERROR("Switch auto mode Error");
         }
-        else if(buttons[JOYBUTTON_LB]){
-            // display UART history
-            ROS_INFO("%s", this->base_driver.get_cmds().c_str());
+        return OPCODE_AUTO;
+    }
+    else if(buttons[JOYBUTTON_RB]){ // switch agent action input
+        if(this->stage_bm & MODE_AGENT){ // enter agent
+            this->stage_bm &= (~MODE_AGENT);
+            ROS_INFO("Turn off agent input");
         }
-        else if(buttons[JOYBUTTON_LT]){
-            // clear UART history
-            this->base_driver.clear();
-            ROS_INFO("Clear UART history");
+        else{ // leave
+            this->stage_bm |= MODE_AGENT;
+            this->sch_srv.start();
+            ROS_INFO("Turn on agent input");
         }
-        else if(buttons[JOYBUTTON_RT]){
-            // publish our UART histroy anonymously, all receiver
-            tircgo_msgs::ControllerTalk msg;
-            msg.talk = this->base_driver.get_cmds();
-            this->pub_agent_imm.publish(msg);
-            ROS_INFO("Publish UART history");
-        }
-        else if(buttons[JOYBUTTON_RB]){
-            // switch agent action input
-            if(this->stage_bm & MODE_AGENT){
-                this->stage_bm &= (~MODE_AGENT);
-                ROS_INFO("Turn off agent input");
-            }
-            else{
-                this->stage_bm |= MODE_AGENT;
-                this->sch_srv.start();
-                ROS_INFO("Turn on agent input");
-            }
-        }
-        // decode mode dependent instructions
-        switch(this->mode){
-            case MODE_IDLE:
-                if(buttons[JOYBUTTON_Y])
-                    ret = OPCODE_CALIB;
-                else if(buttons[JOYBUTTON_X])
-                    ret = OPCODE_TRAIN_BEGIN;
-                else if(buttons[JOYBUTTON_B])
-                    ret = OPCODE_WORK_BEGIN;
+        return OPCODE_AGENT;
+    }
 
-                else if(axes[JOYAXES_CROSS_LR] == -1.0)
-                    this->nd_target.route = (this->nd_target.route + 1) % TRAIN_ROUTE_MAX;
-                else if(axes[JOYAXES_CROSS_LR] == 1 && this->nd_target.route > 0){
-                    this->nd_target.route--;
-                }
-                else if(axes[JOYAXES_CROSS_UD] == 1.0)
-                    this->nd_target.node++;
-                else if(axes[JOYAXES_CROSS_UD] == -1 && this->nd_target.node > 0){
-                    this->nd_target.node--;
-                }
-                
-                else if(buttons[JOYBUTTON_STICK_RIGHT] && this->nd_training.route + 1 < TRAIN_ROUTE_MAX){
-                    this->nd_training.route++;
-                }
-                else if(buttons[JOYBUTTON_STICK_LEFT] && this->nd_training.route > 0){
-                    this->nd_training.route--;
-                }
+    // minor, exe in place
+    if(buttons[JOYBUTTON_LB]){ // display UART history
+        ROS_INFO("%s", this->base_driver.get_cmds().c_str());
+    }
+    if(buttons[JOYBUTTON_LT]){ // clear UART history
+        this->base_driver.clear();
+        ROS_INFO("Clear UART history");
+    }
+    if(buttons[JOYBUTTON_RT]){ // publish our UART histroy anonymously, all receiver
+        tircgo_msgs::ControllerTalk msg;
+        msg.talk = this->base_driver.get_cmds();
+        this->pub_agent_imm.publish(msg);
+        ROS_INFO("Publish UART history");
+    }
+    if(axes[JOYAXES_CROSS_LR] == -1.0)
+        this->nd_target.route = (this->nd_target.route + 1) % TRAIN_ROUTE_MAX;
+    if(axes[JOYAXES_CROSS_LR] == 1 && this->nd_target.route > 0){
+        this->nd_target.route--;
+    }
+    if(axes[JOYAXES_CROSS_UD] == 1.0)
+        this->nd_target.node++;
+    if(axes[JOYAXES_CROSS_UD] == -1 && this->nd_target.node > 0){
+        this->nd_target.node--;
+    }
+    if(buttons[JOYBUTTON_STICK_RIGHT] && this->nd_training.route + 1 < TRAIN_ROUTE_MAX){
+        this->nd_training.route++;
+    }
+    if(buttons[JOYBUTTON_STICK_LEFT] && this->nd_training.route > 0){
+        this->nd_training.route--;
+    }
 
-                break;
-            case MODE_TRAINING:
-                if(buttons[JOYBUTTON_X])
-                    ret = OPCODE_SETNODE;
-                else if(buttons[JOYBUTTON_B])
-                    ret = OPCODE_TRAIN_FINISH;
-                break;
-            case MODE_WORKING:
-                if(buttons[JOYBUTTON_A])
-                    ret = OPCODE_WORK_FINISH;
-                break;
-            default:
-                break;
-        }
+    // decode mode dependent instructions
+    switch(this->mode){
+        case MODE_IDLE:
+            if(buttons[JOYBUTTON_Y])
+                ret = OPCODE_CALIB;
+            else if(buttons[JOYBUTTON_X])
+                ret = OPCODE_TRAIN_BEGIN;
+            else if(buttons[JOYBUTTON_B])
+                ret = OPCODE_WORK_BEGIN;
+            break;
+        case MODE_TRAINING:
+            if(buttons[JOYBUTTON_X])
+                ret = OPCODE_SETNODE;
+            else if(buttons[JOYBUTTON_B])
+                ret = OPCODE_TRAIN_FINISH;
+            break;
+        case MODE_WORKING:
+            if(buttons[JOYBUTTON_A])
+                ret = OPCODE_WORK_FINISH;
+            break;
+        default:
+            break;
     }
     return ret;
 }
@@ -220,11 +229,11 @@ int16_t Controller::decode_opcode()
     decode joystick to drive signal
     independent of int16_t decoding
 */
-vector<int16_t> Controller::decode_drive()
+vector<int16_t> Controller::decode_drive(sensor_msgs::Joy::ConstPtr _ptr)
 {
-    if(this->op_ptr){
-        vector<float> axes = this->op_ptr->axes;
-        vector<int32_t> buttons = this->op_ptr->buttons;
+    if(_ptr){
+        vector<float> axes = _ptr->axes;
+        vector<int32_t> buttons = _ptr->buttons;
         if(abs(axes[JOYAXES_STICKLEFT_UD]) > abs(axes[JOYAXES_STICKLEFT_LR])){
             return {static_cast<int16_t>(axes[JOYAXES_STICKLEFT_UD]) * static_cast<int16_t>(DRIVE_VEL_LINEAR), 0};
         }
@@ -245,17 +254,23 @@ bool Controller::drive(vector<int16_t> _vel)
     if((this->stage_bm & MODE_TRAINING) && (this->mode != MODE_TRAINING || this->nd_training.node == -1)){
         _vel = {0, 0};
     }
-    this->op_vel = _vel;
-    // // legal condition to driveif(this->check_safety()){
-    auto srv = this->base_driver.invoke(OPCODE_DRIVE, _vel);
-    if(this->base_driver.is_invoke_valid(srv)){
-        this->pose_tracer.set_vw(_vel);
+
+    vector<int16_t> curr_vel = this->pose_tracer.get_vel();
+    if(_vel[0] == 0 && _vel[1] == 0 && curr_vel[0] == 0 && curr_vel[1] == 0)
+        return true;
+    if(this->check_safety(_vel)){
+        auto srv = this->base_driver.invoke(OPCODE_DRIVE, _vel);
+        if(this->base_driver.is_invoke_valid(srv)){
+            this->pose_tracer.set_vw(_vel);
+        }
+        else{
+            ROS_INFO("Drive failed");
+            return false;
+        }
     }
     else{
-        ROS_INFO("Unsafe condition, drive rejected");
-        return false;
+        ROS_INFO("Not safe, drive neglected");
     }
-
     return true;
 }
 
@@ -263,17 +278,13 @@ bool Controller::drive(vector<int16_t> _vel)
 void Controller::clear()
 {
     this->stage_bm = 0;
-    this->runtime_vars_mgr(RUNTIME_VARS_RESET);
     this->pose_tracer.clear();
     this->graph.clear();
     for(auto &it : this->rn_img){
         it.clear();
     }
     this->work_list.clear();
-    // this->base_driver.clear();
-    ROS_INFO("Clear data, UART histroy not cleared, press LT to clear");
-    auto srv = this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_3L_2S, 1});
-    this->base_driver.is_invoke_valid(srv);
+    ROS_WARN("Clear data, UART histroy not cleared, press LT to clear");
 }
 
 /* writing log files */
@@ -293,13 +304,13 @@ bool Controller::shutdown()
     }
 }
 /* safety issue */
-bool Controller::check_safety()
+bool Controller::check_safety(vector<int16_t> _vel)
 {
     bool ret;
     if(this->mode != MODE_WORKING){
-        if(this->op_vel[0] > 0)
+        if(_vel[0] > 0)
             return this->lidar_levels[LIDAR_DIR_FRONT] < LIDAR_LEVEL_CLOSE;
-        else if(this->op_vel[0] < 0)
+        else if(_vel[0] < 0)
             return this->lidar_levels[LIDAR_DIR_BACK] < LIDAR_LEVEL_CLOSE;
         else
             ret = true;
@@ -322,45 +333,17 @@ sensor_msgs::Joy::ConstPtr Controller::get_joy_signal()
     return this->joystick.pop();
 }
 
-void Controller::runtime_vars_mgr(bool _flag)
+bool Controller::priviledged_instr(int16_t _op)
 {
-    if(_flag == RUNTIME_VARS_SET){ // get all input signals
-        this->op_ptr = this->get_joy_signal();
-        this->op = this->decode_opcode();
-        this->op_vel = this->decode_drive();
-    }
-    else{
-        this->op_vel = {0, 0};
-        this->op_ptr = nullptr;
-        this->op = OPCODE_NONE;
-    }
-}
-bool Controller::priviledged_instr()
-{
-    bool ret = true;
-    switch(this->op){
+    switch(_op){
         // return statements
         case OPCODE_SHUTDOWN:
-            this->shutdown();
-            break;
-        case OPCODE_AUTO_BEGIN:
-            if(this->stage_bm & MODE_TRAINING){
-                this->stage_bm |= MODE_AUTO;
-                this->sch_srv.start();
-                ROS_WARN("Start auto mode");
-            }
-            else{
-                ROS_ERROR("Not trained, press auto has no effect");
-            }
-            break;
-        case OPCODE_AUTO_FINISH:
-            this->stage_bm &= (~MODE_AUTO);
-            ROS_WARN("Finish auto mode, script has no effect now");
+        case OPCODE_AUTO:
+        case OPCODE_AGENT:
+            return true;
         default:
-            ret = false;
-            break;
+            return false;
     }
-    return ret;
 }
 /* return if the _route, _node pair is valid in the current robot */
 bool Controller::is_target_valid(const RouteNode &_nd)
