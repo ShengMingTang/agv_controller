@@ -4,55 +4,53 @@ extern list<WalkUnitType> flip_walk(const list<WalkUnitType> &_walk);
 extern double dist(const geometry_msgs::Point &_a, const geometry_msgs::Point &_b);
 
 void Controller::loopOnce()
-{
-    // loopOnce front
-    this->runtime_vars_mgr(RUNTIME_VARS_SET);
-    
+{   
+    auto op_ptr = this->get_joy_signal();
+    int16_t op = this->decode_opcode(op_ptr);
+
     // not joystick controllable space
-    if(!this->priviledged_instr() && 
+    if(!this->priviledged_instr(op) && 
         !(this->stage_bm & MODE_AUTO) && 
         !(this->stage_bm & MODE_AGENT))
     {
         switch(this->mode){
             case MODE_IDLE:
-                this->idle();
+                this->idle(op);
                 break;
             case MODE_POS:
                 ROS_INFO("Postitioning, please walk around");
-                this->idle();
+                this->idle(op);
                 break;
             case MODE_CALIB:
-                this->calibration();
+                this->calibration(op);
                 break;
             case MODE_TRAINING:
-                this->training();
+                this->training(op);
                 break;
             case MODE_WORKING:
-                this->working();
+                this->working(op);
                 break;
             default:
                 ROS_WARN("Undefined mode %d", this->mode);
                 break;
         }
     }
-    // loopOnce back
-    this->runtime_vars_mgr(RUNTIME_VARS_RESET);
+
+    this->drive(this->decode_drive(op_ptr));
     this->monitor_display();
     this->loop_rate.sleep();
 }
-void Controller::idle()
+void Controller::idle(const int16_t &_op)
 {
     RobotInvoke srv;
-    switch(this->op){
+    switch(_op){
         case OPCODE_NONE:
             this->trigger_working();
             break;
         case OPCODE_CALIB:
             srv = this->base_driver.invoke(OPCODE_CALIB, vector<int16_t>());
             if(this->base_driver.is_invoke_valid(srv)){
-                this->drive({0, 0});
-                this->clear();
-                this->calibration();
+                this->calibration(_op);
             }
             break;
         case OPCODE_TRAIN_BEGIN:
@@ -60,35 +58,32 @@ void Controller::idle()
                 ROS_ERROR("Train begin failed");
             }
             break;
-        /* work manually, just push node here*/
-        case OPCODE_WORK_BEGIN:
+        case OPCODE_WORK_BEGIN: // work manually, just push node here
             this->add_target(this->nd_target);
             break;
-        case OPCODE_AUTO_BEGIN:
-        case OPCODE_AUTO_FINISH:
+        case OPCODE_AUTO:
             break;
         default:
-            ROS_WARN("In Idle mode, %c is not allowed", (char)this->op);
+            ROS_WARN("In Idle mode, %c is not allowed", static_cast<char>(_op));
             break;
     }
-    this->drive(this->op_vel);
 }
 
-/* busy wait */
-void Controller::calibration()
+void Controller::calibration(const int16_t &_op)
 {
     #ifdef ROBOT_CONTROLLER_TEST
         this->mode = MODE_IDLE;
         this->stage_bm |= MODE_CALIB;
     #endif
-    ROS_WARN("Direct modification of stage_bm |= MODE_CALIB");
+    this->clear();
     this->stage_bm |= MODE_CALIB;
+    ROS_INFO("Calibration finished");
 }
-void Controller::training()
+void Controller::training(const int16_t &_op)
 {
     RobotInvoke srv;
     // node
-    switch(this->op){
+    switch(_op){
         case OPCODE_NONE:
             break;
         case OPCODE_SETNODE:
@@ -102,33 +97,32 @@ void Controller::training()
             }
             break;
         default:
-            ROS_INFO("In Training mode, %c is not allowed", (char)this->op);
+            ROS_INFO("In Training mode, %c is not allowed", (char)_op);
             break;
     }
-    this->drive(this->op_vel);
 }
 /* 
-    Polling tracking status, if emergency occur then forced exiting working
-    All wokring-related data will be kept.
-    Working will resume as soon as emergency is removed
+    Polling tracking status
 
-    return true then finish working or not in working, escape
-    false otherwise then keep trying
+    return true then finish working or not in working, escape from action
+    false otherwise and keep trying
 */
-bool Controller::working()
+bool Controller::working(const int16_t &_op)
 {
     this->work_mutex.lock();
+    bool ret = false;
 
     #ifdef ROBOT_CONTROLLER_TEST
         ros::Rate r(1);
         r.sleep();
         this->tracking_status = TRACKING_STATUS_ARRIVAL;
     #endif
+    
     if(this->mode != MODE_WORKING){ // finished elsewhere
-        ROS_WARN("Nont in working mode but enter working fn, synchronization issue, Escape");
-        return true;
+        ROS_ERROR("mode : %d, Nont in working mode but enter working fn, synchronization issue, Escape", this->mode);
     }
-    else if(this->op == OPCODE_WORK_FINISH){
+    
+    if(_op == OPCODE_WORK_FINISH && !(this->stage_bm & MODE_AUTO)){
         auto srv = this->base_driver.invoke(OPCODE_WORK_FINISH, vector<int16_t>());
         if(this->base_driver.is_invoke_valid(srv)){
             
@@ -142,19 +136,17 @@ bool Controller::working()
             #endif
             
             ROS_INFO("Finish Working manually");
-            this->work_mutex.unlock();
-            return true;
+            ret = true;
         }
         else{
             ROS_INFO("Finish Working manually failed, nothing changed");
-            this->work_mutex.unlock();
-            return false;
         }
     }
     else if(this->tracking_status == TRACKING_STATUS_ARRIVAL){
+        ROS_INFO("Arrival on target");
         auto srv = this->base_driver.invoke(OPCODE_WORK_FINISH, vector<int16_t>());
         if(this->base_driver.is_invoke_valid(srv)){
-            
+            ROS_INFO("Arrival and finish working");
             this->ocp_vptr = this->work_list.front();
             this->pose_tracer.set_coor(this->ocp_vptr->pos.x, this->ocp_vptr->pos.y);
             this->work_list.pop_front();
@@ -163,118 +155,111 @@ bool Controller::working()
                 this->tracking_status = TRACKING_STATUS_NORMAL;
                 this->mode = MODE_IDLE;
             #endif
-            
-            this->work_mutex.unlock();
-            return true;
+
+            ret = true;
         }
         else{
             ROS_ERROR("Arrival but invoke Work finish Error, keep trying");
-            this->work_mutex.unlock();
-            return false;
         }
     }
-    else if(!this->check_safety()){ // not safe, stop current work, call help
-        auto srv = this->base_driver.invoke(OPCODE_WORK_FINISH, vector<int16_t>());
-        if(this->base_driver.is_invoke_valid(srv)){
-            auto sig_srv = this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_3L_2S, 1});
-            ROS_INFO("Stop working due to unsafe condition");
-            this->work_mutex.unlock();
-            return false;
-        }
-        else{
-            ROS_ERROR("Working but safety issue not satisfied, keep trying");
-            return false;
-        }
-    }
-    else{
-        this->work_mutex.unlock();
-        return false;
-    }
+    this->work_mutex.unlock();
+    return ret;
 }
 bool Controller::set_node()
 {
+    this->train_mutex.lock();
+
     PrimitiveType nd;
     auto coor = this->pose_tracer.get_coor();
+    VertexType *last_ptr = nullptr;
+    
     nd.pos.x = coor.x, nd.pos.y = coor.y;
     nd.route = nd.node = -1;
+    
+    // valid operation check
     if(!(this->mode & MODE_TRAINING)){
         ROS_ERROR("Not in training mode but want to set node");
+        this->train_mutex.unlock();
         return false;
     }
-    VertexType *last_ptr = nullptr;
-    if(this->nd_training.node > 0){ // has last node on this route
+    if(this->nd_training.node > 0){ // has a node on this route
         last_ptr = this->rn_img[this->nd_training.route].back();
     }
     // else no last node
     if(last_ptr && dist(last_ptr->aliases.begin()->pos, nd.pos) < this->close_enough){
         ROS_INFO("Set points < CLOSE_ENOUGH, rejected");
+        this->train_mutex.unlock();
         return false;
     }
+
     // body
+    bool ret = false;
     if(this->drive({0, 0})){
         auto srv = this->base_driver.invoke(OPCODE_SETNODE, {SETNODE_PASS_EXACT, this->pose_tracer.get_headway()});
         if(this->base_driver.is_invoke_valid(srv)){
             // graph routine
             nd.route = this->nd_training.route, nd.node = srv.response.feedback[0] - 1;
             
-            // quick return 
             if(nd.node != this->rn_img[nd.route].size()){
                 ROS_ERROR("UART-returned node not continuous, fatal error, setnode ignored");
-                return false;
             }
-            // update training parameters
-            this->nd_training.node = nd.node;
-            // check if there is a close vertex so that they can merge
-            VertexType* vptr = nullptr;
-            for(auto vec : this->rn_img){
-                for(auto it : vec){
-                    if(dist(it->pos, nd.pos) < this->close_enough){
-                        vptr = it;
-                        this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_3L_2S, 1});
-                        break;
+            else{
+                // update training parameters
+                this->nd_training.node = nd.node;
+                // check if there is a close vertex so that they can merge
+                VertexType* vptr = nullptr;
+                for(auto vec : this->rn_img){
+                    for(auto it : vec){
+                        if(dist(it->pos, nd.pos) < this->close_enough){
+                            vptr = it;
+                            // this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_3L_2S, 1});
+                            break;
+                        }
                     }
+                    if(vptr)
+                        break;
                 }
-                if(vptr)
-                    break;
+                // make a vertex for the graph, retrieve its reference if it is a new vertex
+                if(!vptr){ // need to create a new one
+                    VertexType tmp;
+                    vptr = this->graph.add_vertex(tmp);
+                    vptr->pos = nd.pos;
+                }
+                // add the new routenode to the vertex
+                vptr->aliases.insert(nd);
+                this->rn_img[nd.route].push_back(vptr);
+                // build forward and backward edge if it is not the first node in the current route
+                if(nd.node > 0){
+                    // build edge for forward direction, add it to graph
+                    EdgeType e;
+                    e.src = this->rn_img[nd.route][nd.node - 1];
+                    e.dst = vptr;
+                    e.w = this->pose_tracer.get_dist();
+                    e.walk = this->pose_tracer.get_path();
+                    this->graph.add_edge(e);
+                    // flip the edge for backwawrd direction, add it to graph
+                    swap(e.src, e.dst);
+                    e.walk = flip_walk(e.walk);
+                    this->graph.add_edge(e);
+                }
+                // done
+                this->ocp_vptr = vptr;
+                ROS_INFO("Node #R%d, #N%d @ (%f,%f) set", nd.route, nd.node, nd.pos.x, nd.pos.y);
+                ret = true;
             }
-            // make a vertex for the graph, retrieve its reference if it is a new vertex
-            if(!vptr){ // need to create a new one
-                VertexType tmp;
-                vptr = this->graph.add_vertex(tmp);
-                vptr->pos = nd.pos;
-            }
-            // add the new routenode to the vertex
-            vptr->aliases.insert(nd);
-            this->rn_img[nd.route].push_back(vptr);
-            // build forward and backward edge if it is not the first node in the current route
-            if(nd.node > 0){
-                // build edge for forward direction, add it to graph
-                EdgeType e;
-                e.src = this->rn_img[nd.route][nd.node - 1];
-                e.dst = vptr;
-                e.w = this->pose_tracer.get_dist();
-                e.walk = this->pose_tracer.get_path();
-                this->graph.add_edge(e);
-                // flip the edge for backwawrd direction, add it to graph
-                swap(e.src, e.dst);
-                e.walk = flip_walk(e.walk);
-                this->graph.add_edge(e);
-            }
-            // done
-            this->ocp_vptr = vptr;
-            ROS_INFO("Node #R%d, #N%d @ (%f,%f) set", nd.route, nd.node, nd.pos.x, nd.pos.y);
-            return true;
         }
-        return false;
     }
     else{
         ROS_ERROR("Drive error in SetNode, setnode not done");
-        return false;
     }
+    this->train_mutex.unlock();
+    return ret;
 }
 bool Controller::add_target(const RouteNode &_nd)
 {
     this->work_mutex.lock();
+    bool ret = false;
+
     if(this->stage_bm & MODE_TRAINING){
         if(this->is_target_valid(_nd)){
             this->work_list.clear();
@@ -295,20 +280,17 @@ bool Controller::add_target(const RouteNode &_nd)
                 ss << "R" << nd.route << "N" << nd.node << " -> ";
             }
             ROS_INFO("%s", ss.str().c_str());
+            ret = true;
         }
         else{
             ROS_ERROR("Target out of range, plz reset");
-            this->work_mutex.unlock();
-            return false;
         }
     }
     else{
         ROS_ERROR("Not trained but want to add target");
-        this->work_mutex.unlock();
-        return false;
     }
     this->work_mutex.unlock();
-    return true;
+    return ret;
 }
 /* Find the RouteNode on the same path as the curret one */
 const RouteNode Controller::get_affinity_vertex(const VertexType* _curr, const VertexType* _vptr)
@@ -365,6 +347,8 @@ bool Controller::train_begin()
 bool Controller::train_finish()
 {
     this->train_mutex.lock();
+
+    bool ret = false;
     if(this->rn_img[this->nd_training.route].size() >= TRAIN_NODE_MIN){
         auto srv = this->base_driver.invoke(OPCODE_TRAIN_FINISH, vector<int16_t>());
         if(this->base_driver.is_invoke_valid(srv)){
@@ -378,8 +362,7 @@ bool Controller::train_finish()
 
             auto s = this->dumps_graph();
             ROS_WARN("\n%s", s.c_str());
-            this->train_mutex.unlock();
-            return true;
+            ret = true;
         }
         else{
             ROS_ERROR("SetNode Failed when finishing training");
@@ -390,7 +373,7 @@ bool Controller::train_finish()
         ROS_INFO("Should set at least 2 nodes before finishing training, invokation rejected");
     }
     this->train_mutex.unlock();
-    return false;
+    return ret;
 }
 /* 
     trigger working if work_list is not empty 
@@ -400,6 +383,8 @@ bool Controller::train_finish()
 bool Controller::trigger_working()
 {
     this->work_mutex.lock();
+    
+    bool ret = false;
     if(this->stage_bm & MODE_TRAINING && !this->work_list.empty()){
         // check if there were jobs to do
         VertexType *next_vptr = this->work_list.front();
@@ -416,8 +401,7 @@ bool Controller::trigger_working()
                     this->mode = MODE_WORKING;
                     this->stage_bm |= MODE_WORKING;
                 #endif
-                this->work_mutex.unlock();
-                return true;
+                ret = true;
             }
         }
         else{
@@ -425,4 +409,5 @@ bool Controller::trigger_working()
         }
     }
     this->work_mutex.unlock();
+    return ret;
 }

@@ -95,7 +95,7 @@ bool UART::is_invoke_valid(const RobotInvoke  &_srv)
     #endif
     if(!ret){
         stringstream ss;
-        ss << "Op = " << _srv.request.operation << ", ";
+        ss << "[UART] Op = " << _srv.request.operation << ", ";
         if(!_srv.response.is_legal_op){
             ss << "Op ill. , ";
         }
@@ -109,21 +109,6 @@ bool UART::is_invoke_valid(const RobotInvoke  &_srv)
             ROS_ERROR("%s", ss.str().c_str());
     }
     else{
-        switch (_srv.request.operation)
-        {
-            // priviledged
-            case OPCODE_SHUTDOWN:
-            case OPCODE_CALIB:
-            case OPCODE_TRAIN_BEGIN:
-            case OPCODE_SETNODE:
-            case OPCODE_TRAIN_FINISH:
-            case OPCODE_WORK_BEGIN:
-            case OPCODE_WORK_FINISH:
-                this->invoke(OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_L, 1});
-                break;
-            default:
-                break;
-        }
         switch (_srv.request.operation)
         {
             case OPCODE_WORK_BEGIN:
@@ -183,9 +168,6 @@ string UART::get_cmds()
         }
         ss << ")";
         ss << "\n";
-        // if(it.act == OPCODE_TRAIN_FINISH){
-            // ss << "#####\n";
-        // }
     }
     return ss.str();
 }
