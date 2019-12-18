@@ -18,9 +18,11 @@ if __name__ == '__main__':
     try:
         print(len(sys.argv))
         if len(sys.argv) > 1:
-            rospy.init_node(sys.argv[1] + 'imm_joy', anonymous=True)
-            rospy.loginfo('[Imm_joy] Build an immediate node from joy to %s' % (sys.argv[1]))
-            master = Imm_joy(sys.argv[1])
+            rospy.init_node('imm_joy', anonymous=True)
+            master = []
+            for id in sys.argv[1:]:
+                rospy.loginfo('[Imm_joy] Build an immediate node from joy to %s' % (id))
+                master.append(Imm_joy(id))
             rospy.spin()
         else:
             rospy.init_node('Dummy_imm_joy', anonymous=True)

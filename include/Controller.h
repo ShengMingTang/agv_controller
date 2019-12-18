@@ -6,6 +6,7 @@
 
 #include <vector>
 #include <sstream>
+#include <fstream>
 #include <string>
 #include <queue>
 #include <cmath>
@@ -107,9 +108,9 @@ namespace tircgo
         void training(const int16_t &_op);
         bool working(const int16_t &_op);
         /* Sys related */
-        // void runtime_vars_mgr(bool _flag);
         void clear();
-        void log(); // print only
+        void log();
+        void restore(fstream &fs);
         bool check_safety(vector<int16_t> _vel); // tell if near an obstable only
 
         /* ---------------------------------------------------------------------------------------------*/
@@ -117,6 +118,8 @@ namespace tircgo
         /* build time */
         ros::NodeHandle n;
         string frame_id;
+        string timestamp;
+        string log_path; // log file path, search and log
         int control = 0;
         ros::Rate loop_rate = ros::Rate(5);
         float drive_timeout = 0.4;
@@ -141,6 +144,7 @@ namespace tircgo
         
         /* Graph related */
         Graph<VertexType, EdgeType> graph;
+        string graph_viz;
         vector< vector<VertexType*> > rn_img; // [route][node] -> reference in graph
         const RouteNode get_affinity_vertex(const VertexType* _curr, const VertexType* _vptr);
         /* training and working */

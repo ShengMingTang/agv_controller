@@ -46,6 +46,10 @@ void Controller::monitor_display() const
 /* dumps graph to string*/
 string Controller::dumps_graph()
 {
+    if(this->graph.is_up_to_date){
+        return this->graph_viz;
+    }
+
     const char graphviz_color[5][20] = {"indianred", "orange3", "yellow3", "green3", "lightblue3"};
     auto coor = this->pose_tracer.get_coor(); 
     geometry_msgs::Point pos;
@@ -115,12 +119,19 @@ string Controller::dumps_graph()
         digraph += "\n";
     }
     digraph += "}";
+    this->graph_viz = digraph;
     return digraph;
 }
 /* wifi */
 bool Controller::nodeocp_serve(WifiNodeOcp::Request &_req, WifiNodeOcp::Response &_res)
 {
-    _res.is_ocp = !( (this->ocp_vptr->aliases.find(_req.q_rn)) == this->ocp_vptr->aliases.end() );
+    if(this->ocp_vptr){
+        _res.is_ocp = !( this->ocp_vptr->aliases.find(_req.q_rn) == this->ocp_vptr->aliases.end() );
+    }
+    else{
+        ROS_WARN("[Nodeocp Service] target out of range, reply false(not occupied)");
+        _res.is_ocp = false;
+    }
     _res.error_code = WIFI_ERRCODE_NONE;
     return true;
 }
@@ -142,7 +153,7 @@ bool Controller::task_confirm_serve(WifiTaskConfirm::Request &_req, WifiTaskConf
     if(this->stage_bm & MODE_AUTO){
         _res.is_taken = false;
         _res.error_code = WIFI_ERRCODE_ROBOT;
-        ROS_WARN("[Task confirm Service] In auto mode, not taking any wifi allocated jobs");
+        ROS_WARN("[Taskconfirm Service] In auto mode, not taking any wifi allocated jobs");
     }
     else if(this->is_target_valid(_req.task.target)){
         _res.is_taken = true;
@@ -153,7 +164,7 @@ bool Controller::task_confirm_serve(WifiTaskConfirm::Request &_req, WifiTaskConf
     else{
         _res.is_taken = false;
         _res.error_code = WIFI_ERRCODE_NODE;
-        ROS_WARN("[Task confirm Service] target out of range, reply max double value");
+        ROS_WARN("[Taskconfirm Service] target out of range");
     }
     return true;
 }
@@ -172,7 +183,13 @@ bool Controller::askdata_serve(Ask_Data::Request &_req, Ask_Data::Response &_res
     data.nd_training = this->nd_training;
     data.graph = this->dumps_graph();
 
-    data.nd_ocp = *(this->ocp_vptr->aliases.begin());
+    if(this->ocp_vptr && !this->ocp_vptr->aliases.empty()){
+        data.nd_ocp = *(this->ocp_vptr->aliases.begin());
+    }
+    else{
+        data.nd_ocp.route = data.nd_ocp.node = -1;
+    }
+
     data.nd_target = this->nd_target;
     for(auto it : this->work_list){
         data.work_list.push_back(*(it->aliases.begin()));
@@ -186,7 +203,7 @@ bool Controller::is_target_ocp(const VertexType *vptr)
     srv.request.q_rn = *(vptr->aliases.begin());
     if(this->control & CONTROL_WIFI && vptr){
         if(!this->nodeocp_clt.call(srv)){
-            ROS_ERROR("| ----> Wifi Err");
+            ROS_ERROR("| ----> Wifi SrvErr");
             return false;
         }
         return srv.response.error_code == WIFI_ERRCODE_NONE && srv.response.is_ocp;

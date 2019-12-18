@@ -2,12 +2,12 @@
     <!--  OK if ID != ""-->
     <arg name="ID" default =""/>
     <!-- joy node -->
-    <node pkg="joy" type="joy_node" name="joy_node$(arg ID)"/>
+    <!-- <node pkg="joy" type="joy_node" name="joy_node$(arg ID)"/> -->
     <!-- brain -->
-    <node pkg="tircgo_controller" type="tircgo_controller_node" name="tircgo_controller_node$(arg ID)" args = "$(arg ID)" output="screen"/>
+    <node pkg="tircgo_controller" type="tircgo_controller_node" name="tircgo_controller_node$(arg ID)" args = "-i $(arg ID)" output="screen"/>
     <!-- Scheduler -->
-    <node pkg="tircgo_controller" type="Scheduler.py" name="Scheduler_py$(arg ID)"  args = "$(arg ID)" output="screen"/>
+    <node pkg="tircgo_controller" type="Scheduler.py" name="Scheduler_py$(arg ID)"  args = "(arg ID)" output="screen"/>
     <!-- Agent -->
     <node pkg="tircgo_controller" type="Agent.py" name="Agent_py$(arg ID)" args = "$(arg ID)" output="screen"/>
-    <node pkg="tircgo_controller" type="Imm_joy.py" name="Imm_joy_py$(arg ID)" args = "$(arg ID)" output="screen"/>
+    <!-- <node pkg="tircgo_controller" type="Imm_joy.py" name="Imm_joy_py$(arg ID)" args = "$(arg ID)" output="screen"/> -->
 </launch>

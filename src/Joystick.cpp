@@ -4,11 +4,11 @@ Joystick::Joystick(const string& _parent_frame_id)
 ,sub {this->n.subscribe((_parent_frame_id + JOYSTICKIO_TOPIC).c_str(), MSG_QUE_SIZE, &Joystick::callback, this)}
 ,last_press_t {ros::Time::now()}
 {
-    ROS_INFO("Joystick constructed");
+    // ROS_INFO("[Joystick] constructed");
 }
 Joystick::~Joystick()
 {
-    ROS_INFO("Joystick destroyed");
+    // ROS_INFO("[Joystick] destroyed");
 }
 sensor_msgs::Joy::ConstPtr Joystick::pop()
 {

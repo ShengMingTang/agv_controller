@@ -5,17 +5,17 @@ starttime{ros::Time::now()}
 {
     this->coor.x = this->coor.y = this->coor.z = this->coor.w = 0;
     this->vel = {0, 0};
-    ROS_INFO("PoseTracer constructed");
+    // ROS_INFO("[PoseTracer] constructed");
 }
 PoseTracer::~PoseTracer()
 {
-    ROS_INFO("PoseTracer destructed");
+    // ROS_INFO("[PoseTracer] destructed");
 }
 void PoseTracer::clear()
 {
     this->reset_path();
     this->coor = {};
-    ROS_INFO("PoseTracer cleared");
+    ROS_INFO("[PoseTracer] cleared");
 }
 void PoseTracer::reset_path()
 {

@@ -44,3 +44,21 @@ double dist(const geometry_msgs::Point &_a, const geometry_msgs::Point &_b)
 {
     return sqrt( pow(_a.x - _b.x, 2) + pow(_a.y - _b.y, 2) );
 }
+
+string search_nodename(int _argc, char **_argv)
+{
+    for(int i = 1; i < _argc; i++){
+        string opt;
+        opt = _argv[i];
+        if(opt == "-i"){
+            if(i + 1 < _argc){
+                opt = _argv[i+1];
+                return _argv[i + 1];
+            }
+            else{
+                ROS_ERROR("Invalid number of cmd line args");
+            }
+        }
+    }
+    return "";
+}

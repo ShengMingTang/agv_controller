@@ -9,11 +9,11 @@ UART::UART(const string& _parent_frame_id)
 ,invoke_clt {this->n.serviceClient<RobotInvoke>(ROBOTINVOKE_TOPIC)}
 ,lastdriveTime {ros::Time::now()}
 {
-    ROS_INFO("[UART] constructed");
+    // ROS_INFO("[UART] constructed");
 }
 UART::~UART()
 {
-    ROS_INFO("[UART] destructed");
+    // ROS_INFO("[UART] destructed");
 }
 RobotInvoke UART::invoke(const int16_t _op, std::vector<int16_t> _args)
 {
@@ -137,7 +137,7 @@ bool UART::is_invoke_valid(const RobotInvoke  &_srv)
 string UART::get_cmds()
 {
     stringstream ss;
-    ss << "UART_history\n";
+    ss << "[UART_history]\n";
     for(auto it : this->cmds){
         switch (it.act)
         {
@@ -175,5 +175,5 @@ void UART::clear()
 {
     this->cmds.clear();
     this->lastdriveTime = ros::Time::now();
-    ROS_INFO("[UART] clear");
+    ROS_INFO("[UART] cleared");
 }

@@ -9,6 +9,7 @@
 #include <cmath>
 #include <list>
 #include <set>
+#include <iostream>
 
 using namespace std;
 using namespace tircgo_msgs;
@@ -58,4 +59,6 @@ namespace std
         }    
     };
 }
+
+string search_nodename(int _argc, char **_argv);
 #endif
