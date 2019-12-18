@@ -335,7 +335,16 @@ void Controller::log()
     fs << this->mode << "\n";
     fs << this->stage_bm << "\n";
     fs << "\n";
-    
+    // nodeocp
+    if(this->ocp_vptr){
+        RouteNode nd = *(this->ocp_vptr->aliases.begin());
+        fs << nd.route << " " << nd.node << "\n";
+
+    }
+    else{
+        fs << -1 << " " << -1;
+    }
+
     // vertices bookeeping
     fs << this->graph.vertices.size() << "\n";
     int count = 0;
@@ -393,6 +402,9 @@ void Controller::restore(fstream &fs)
 
     // status
     fs >> this->mode >> this->stage_bm;
+    // nodeocp
+    RouteNode nd_ocp;
+    fs >> nd_ocp.route >> nd_ocp.node;
 
     // vertices
     fs >> vertices_size;
@@ -441,6 +453,13 @@ void Controller::restore(fstream &fs)
             fs >> node;
             this->rn_img[i].push_back(v_map[node]);
         }
+    }
+    if(this->is_target_valid(nd_ocp)){
+        this->ocp_vptr = this->rn_img[nd_ocp.route][nd_ocp.node];
+        ROS_INFO("Robot restored at (%d, %d)", nd_ocp.route, nd_ocp.node);
+    }
+    else{
+        ROS_INFO("Robot reostored to nowhere, please run all routines");
     }
 }
 /* shutdown routine */
