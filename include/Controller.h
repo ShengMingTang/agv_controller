@@ -151,7 +151,7 @@ namespace tircgo
         int16_t training_route = 0, training_node = 0;
         PrimitiveType nd_training;
         // working related
-        PrimitiveType nd_target; // for manually set target
+        PrimitiveType nd_target; // for manually set target, in test mode, it emulate that robot always occupies this node
         VertexType *ocp_vptr;
         list<VertexType*> work_list;
         

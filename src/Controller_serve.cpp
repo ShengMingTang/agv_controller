@@ -29,12 +29,22 @@ void Controller::monitor_display() const
     stringstream ss;
     char buff[150];
     auto coor = this->pose_tracer.get_coor();
-    sprintf(buff, "mode:%d, %d, trk:%d, pos:(%+.1f,%+.1f %+.1f), v:<%+2d,%+2d>, L:[%d,%d,%d,%d], Trn{%d, %d}, Tar<%d,%d>",
+    RouteNode nd;
+    
+    if(this->ocp_vptr){
+        nd = *(this->ocp_vptr->aliases.begin());
+    }
+    else{
+        nd.route = nd.node = -1;
+    }
+
+    sprintf(buff, "stat:%d,%d, trk:%d, ocp:%d,%d, pos:(%+.1f,%+.1f %+.1f), v:<%+2d,%+2d>, L:[%d,%d,%d,%d], Trn{%d, %d}, Tar<%d,%d>",
                 this->mode, this->stage_bm,
+                nd.route, nd.node,
                 this->tracking_status,
                 coor.x, coor.y, (coor.w) / 3.14159 * 180,
                 this->pose_tracer.get_vel()[0], this->pose_tracer.get_vel()[1],
-                this->lidar_levels[0], this->lidar_levels[1], this->lidar_levels[2], this->lidar_levels[2],
+                this->lidar_levels[0], this->lidar_levels[1], this->lidar_levels[2], this->lidar_levels[3],
                 this->nd_training.route, this->nd_training.node,
                 this->nd_target.route, this->nd_target.node
                 );
@@ -129,8 +139,16 @@ bool Controller::nodeocp_serve(WifiNodeOcp::Request &_req, WifiNodeOcp::Response
         _res.is_ocp = !( this->ocp_vptr->aliases.find(_req.q_rn) == this->ocp_vptr->aliases.end() );
     }
     else{
-        ROS_WARN("[Nodeocp Service] target out of range, reply false(not occupied)");
-        _res.is_ocp = false;
+        #ifdef ROBOT_CONTROLLER_TEST
+            string ans;
+            ROS_WARN("{Nodeocp Service] manually answer if occupy R%dN%d ? [y/n]", _req.q_rn.route, _req.q_rn.node);
+            cin >> ans;
+            _res.is_ocp = (ans == "y");
+            
+        #else
+            ROS_WARN("[Nodeocp Service] target out of range, reply false (not occupied)");
+            _res.is_ocp = false;
+        #endif
     }
     _res.error_code = WIFI_ERRCODE_NONE;
     return true;

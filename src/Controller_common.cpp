@@ -26,7 +26,7 @@ frame_id{_id}
     this->timestamp = asctime(localtime(&now));
     this->nd_training.route = this->nd_training.node = 0;
     this->ocp_vptr = nullptr;
-    this->log_path = "tircgo_log" + this->frame_id;
+    this->log_path = "./tircgo_log" + this->frame_id;
     // ROS_INFO("Controller constructed");
 }
 Controller::~Controller()
@@ -129,15 +129,14 @@ void Controller::setup(int _argc, char **argv)
             }
         }
         else{
-            ROS_INFO("Unknown option, neglected");
+            ROS_INFO("Unknown option %s, neglected", opt.c_str());
         }
     }
     if(this->ok()){
         ROS_INFO("============================================================");
         ROS_INFO("Controller Setup :");
-        ROS_INFO("> Only objects in front/back could block, neglect side objects");
         ROS_INFO("> System parameter :");
-        ROS_INFO("> ID = %s", this->frame_id.c_str());
+        ROS_INFO("> ID = \"%s\"", this->frame_id.c_str());
         ROS_INFO("> Control mode : %d", this->control);
         ROS_INFO("> Drive Refresh Time : %.1f", this->drive_timeout);
         ROS_INFO("> Node merge max separation : %d", this->close_enough);
@@ -334,7 +333,6 @@ void Controller::log()
     // status
     fs << this->mode << "\n";
     fs << this->stage_bm << "\n";
-    fs << "\n";
     // nodeocp
     if(this->ocp_vptr){
         RouteNode nd = *(this->ocp_vptr->aliases.begin());
@@ -342,8 +340,9 @@ void Controller::log()
 
     }
     else{
-        fs << -1 << " " << -1;
+        fs << -1 << " " << -1 << "\n";
     }
+    fs << "\n";
 
     // vertices bookeeping
     fs << this->graph.vertices.size() << "\n";
@@ -454,12 +453,13 @@ void Controller::restore(fstream &fs)
             this->rn_img[i].push_back(v_map[node]);
         }
     }
+    
     if(this->is_target_valid(nd_ocp)){
         this->ocp_vptr = this->rn_img[nd_ocp.route][nd_ocp.node];
-        ROS_INFO("Robot restored at (%d, %d)", nd_ocp.route, nd_ocp.node);
+        ROS_INFO("Robot restored at R%dN%d", nd_ocp.route, nd_ocp.node);
     }
     else{
-        ROS_INFO("Robot reostored to nowhere, please run all routines");
+        ROS_WARN("Robot restored at R%dN%d, which is invalid, please re-run all routines", nd_ocp.route, nd_ocp.node);
     }
 }
 /* shutdown routine */

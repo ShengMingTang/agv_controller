@@ -224,13 +224,18 @@ target_compile_definitions(tircgo_controller_node PUBLIC
 target_link_libraries(tircgo_controller_node ${catkin_LIBRARIES})
 add_dependencies(tircgo_controller_node tircgo_controller_gencpp ${catkin_EXPORTED_TARGETS})
 
-# add_executable(tircgo_scheduler_node src/scheduler.cpp)
-# target_link_libraries( 
-#   tircgo_scheduler_node
-#   ${catkin_LIBRARIES}
-# )
-
-# add_dependencies(
-#   tircgo_scheduler_node
-#   ${tircgo_controller_EXPORTED_TARGETS}
-# )
+add_executable(tircgo_controller_node_test 
+  src/main.cpp
+  src/Controller_mode.cpp
+  src/Controller_common.cpp
+  src/Controller_serve.cpp
+  src/Joystick.cpp
+  src/UART.cpp
+  src/PoseTracer.cpp
+  src/tircgo_common.cpp
+)
+target_compile_definitions(tircgo_controller_node_test PUBLIC 
+  ROBOT_CONTROLLER_TEST # comment this line for real application
+)
+target_link_libraries(tircgo_controller_node_test ${catkin_LIBRARIES})
+add_dependencies(tircgo_controller_node_test tircgo_controller_gencpp ${catkin_EXPORTED_TARGETS})
