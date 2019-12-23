@@ -271,11 +271,11 @@ vector<int16_t> Controller::decode_drive(sensor_msgs::Joy::ConstPtr _ptr)
         if(buttons[JOYBUTTON_A]){
             return {0, 0};
         }
-        if(abs(axes[JOYAXES_STICKLEFT_UD]) > abs(axes[JOYAXES_STICKLEFT_LR])){
-            return {static_cast<int16_t>(axes[JOYAXES_STICKLEFT_UD]) * static_cast<int16_t>(DRIVE_VEL_LINEAR), 0};
+        if(abs(axes[JOYAXES_STICKRIGHT_UD]) > abs(axes[JOYAXES_STICKRIGHT_LR])){
+            return {static_cast<int16_t>(axes[JOYAXES_STICKRIGHT_UD]) * static_cast<int16_t>(DRIVE_VEL_LINEAR), 0};
         }
         else{
-            return {0, static_cast<int16_t>(axes[JOYAXES_STICKLEFT_LR]) * static_cast<int16_t>(DRIVE_VEL_ANGULAR)};
+            return {0, static_cast<int16_t>(axes[JOYAXES_STICKRIGHT_LR]) * static_cast<int16_t>(DRIVE_VEL_ANGULAR)};
         }
     }
     return this->pose_tracer.get_vel();

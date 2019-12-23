@@ -46,11 +46,9 @@ V* Graph<V, E>::add_vertex(const V &_add)
 template<typename V, typename E>
 void Graph<V, E>::erase(vector<V*> _victims)
 {
-    for(auto victim : _victims){
+    for(auto &victim : _victims){
         // erase victim <- neighbor
-        int j = 0;
         for(auto edge : this->edges[victim]){
-            int i = 0;
             for(auto back_edge = this->edges[edge.dst].begin(); back_edge != this->edges[edge.dst].end();){
                 if(back_edge->dst == victim){
                     back_edge = this->edges[edge.dst].erase(back_edge);
@@ -58,7 +56,6 @@ void Graph<V, E>::erase(vector<V*> _victims)
                 else{
                     back_edge++;
                 }
-                i++;
             }
         }
         // erase victim -> neighbor
@@ -67,6 +64,7 @@ void Graph<V, E>::erase(vector<V*> _victims)
         for(auto it = this->vertices.begin(); it != this->vertices.end(); ){
             if( &(*it) == victim ){
                 it = this->vertices.erase(it);
+                break;
             }
             else{
                 it++;
