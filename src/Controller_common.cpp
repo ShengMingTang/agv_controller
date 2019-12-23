@@ -147,7 +147,7 @@ void Controller::setup(int _argc, char **argv)
         RobotInvoke srv = this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_2S, 1});
         ros::Rate loop(1);
         while(ros::ok() && this->ok() && !(this->base_driver.is_invoke_valid(srv))){
-            srv = this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_3L_2S, 1});
+            srv = this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_2S, 1});
             loop.sleep();
             ros::spinOnce();
         }
