@@ -48,8 +48,8 @@
 #define TRAIN_NODE_MIN 2
 #define TRAIN_NODE_MAX 10000
 
-#define DRIVE_VEL_LINEAR 40
-#define DRIVE_VEL_ANGULAR 8
+#define DRIVE_VEL_LINEAR 30
+#define DRIVE_VEL_ANGULAR 2
 
 #define CONTROL_WIFI 1
 
@@ -89,7 +89,7 @@ namespace tircgo
         bool train_finish();
 
         bool add_target(const RouteNode &_nd);
-        bool trigger_working();
+        bool work_begin();
         
         /* API suport */
         bool is_target_ocp(const VertexType *vptr);

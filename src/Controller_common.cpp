@@ -33,6 +33,8 @@ Controller::~Controller()
 {
     // ROS_INFO("Controller destructed");
 }
+
+/* Setup robot specific attributes according to cmd line args*/
 void Controller::setup(int _argc, char **argv)
 {
     for(int i = 1; i < _argc; i++){
@@ -142,7 +144,7 @@ void Controller::setup(int _argc, char **argv)
         ROS_INFO("> Node merge max separation : %d", this->close_enough);
         ROS_INFO("============================================================");
         ROS_INFO("Wait for UART");
-        RobotInvoke srv = this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_3L_2S, 1});
+        RobotInvoke srv = this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_2S, 1});
         ros::Rate loop(1);
         while(ros::ok() && this->ok() && !(this->base_driver.is_invoke_valid(srv))){
             srv = this->base_driver.invoke(OPCODE_SIGNAL, {DEVICE_BEEPER, DEVICE_BEEPER_3L_2S, 1});
@@ -153,8 +155,8 @@ void Controller::setup(int _argc, char **argv)
         ROS_INFO("Setup Done");
     }
 }
+
 /*
-    Drive related
     decode opcode according to state
     Non-state-transition-related op will be decoded as OPCODE_NONE 
     and get executed in place
@@ -216,7 +218,7 @@ int16_t Controller::decode_opcode(sensor_msgs::Joy::ConstPtr _ptr)
     }
     if(axes[JOYAXES_CROSS_LR] == -1.0)
         this->nd_target.route = (this->nd_target.route + 1) % TRAIN_ROUTE_MAX;
-    if(axes[JOYAXES_CROSS_LR] == 1 && this->nd_target.route > 0){
+    if(axes[JOYAXES_CROSS_LR] == 1.0 && this->nd_target.route > 0){
         this->nd_target.route--;
     }
     if(axes[JOYAXES_CROSS_UD] == 1.0)
@@ -259,13 +261,16 @@ int16_t Controller::decode_opcode(sensor_msgs::Joy::ConstPtr _ptr)
 
 /*
     decode joystick to drive signal
-    independent of int16_t decoding
+    independent of instruction decoding
 */
 vector<int16_t> Controller::decode_drive(sensor_msgs::Joy::ConstPtr _ptr)
 {
     if(_ptr){
         vector<float> axes = _ptr->axes;
         vector<int32_t> buttons = _ptr->buttons;
+        if(buttons[JOYBUTTON_A]){
+            return {0, 0};
+        }
         if(abs(axes[JOYAXES_STICKLEFT_UD]) > abs(axes[JOYAXES_STICKLEFT_LR])){
             return {static_cast<int16_t>(axes[JOYAXES_STICKLEFT_UD]) * static_cast<int16_t>(DRIVE_VEL_LINEAR), 0};
         }
@@ -277,16 +282,21 @@ vector<int16_t> Controller::decode_drive(sensor_msgs::Joy::ConstPtr _ptr)
 }
 
 /* 
-    drive machine interface, locked if trained (not implemented)
+    drive machine interface, locked if trained but in Idle
     Call this only in Idle, Homing, Training
 */
 bool Controller::drive(vector<int16_t> _vel)
 {
+    // drive is only valid for training and idle
+    if(this->mode != MODE_TRAINING && this->mode != MODE_IDLE)
+        return false;
+
     // trained but not in training
     if((this->stage_bm & MODE_TRAINING) && (this->mode != MODE_TRAINING || this->nd_training.node == -1)){
         _vel = {0, 0};
     }
 
+    // all valid drive condition, may rejet by this->check_safety()
     vector<int16_t> curr_vel = this->pose_tracer.get_vel();
     if(_vel[0] == 0 && _vel[1] == 0 && curr_vel[0] == 0 && curr_vel[1] == 0)
         return true;
@@ -306,7 +316,7 @@ bool Controller::drive(vector<int16_t> _vel)
     return true;
 }
 
-/* Sys related */
+/* Clear all record data except for UART history */
 void Controller::clear()
 {
     this->stage_bm = 0;
@@ -319,7 +329,7 @@ void Controller::clear()
     ROS_WARN("Clear data except for UART histroy (press LT to clear it if you want)");
 }
 
-/* writing log files */
+/* Writing log files */
 void Controller::log()
 {
     fstream fs;
@@ -385,10 +395,17 @@ void Controller::log()
         }
         fs << "\n";
     }
+
+    // graph viz
+    fs << "\n";
+    fs << this->dumps_graph();
+
     fs.close();
 
     ROS_INFO("Log file has been written to \"%s\"", this->log_path.c_str());
 }
+
+/* Restore according to log file */
 void Controller::restore(fstream &fs)
 {
     map<int, VertexType*> v_map;
@@ -462,14 +479,16 @@ void Controller::restore(fstream &fs)
         ROS_WARN("Robot restored at R%dN%d, which is invalid, please re-run all routines", nd_ocp.route, nd_ocp.node);
     }
 }
-/* shutdown routine */
+
+/* Shutdown routine, not actually shutdown */
 bool Controller::shutdown()
 {
     this->log();
     this->stage_bm |= MODE_NOTOK;
-    ROS_INFO("Controller Software Shutdown only");
-    ROS_INFO("Please turn off the power manually");
+    ROS_WARN("Controller Software Shutdown only");
+    ROS_WARN("Please Call shutdown manually before turning off the power button");
 }
+
 /* safety issue */
 bool Controller::check_safety(vector<int16_t> _vel)
 {
@@ -499,7 +518,7 @@ sensor_msgs::Joy::ConstPtr Controller::get_joy_signal()
 {
     return this->joystick.pop();
 }
-
+/* Handling priviledged instruction (higher priority) */
 bool Controller::priviledged_instr(int16_t _op)
 {
     switch(_op){
@@ -512,6 +531,7 @@ bool Controller::priviledged_instr(int16_t _op)
             return false;
     }
 }
+
 /* return if the _route, _node pair is valid in the current robot */
 bool Controller::is_target_valid(const RouteNode &_nd)
 {

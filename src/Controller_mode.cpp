@@ -1,14 +1,11 @@
 #include "Controller.h"
 
-extern list<WalkUnitType> flip_walk(const list<WalkUnitType> &_walk);
-extern double dist(const geometry_msgs::Point &_a, const geometry_msgs::Point &_b);
-
+/* main event loop, loop at rate this->loop_rate */
 void Controller::loopOnce()
 {   
     auto op_ptr = this->get_joy_signal();
     int16_t op = this->decode_opcode(op_ptr);
 
-    // not joystick controllable space
     if(!this->priviledged_instr(op) && 
         !(this->stage_bm & MODE_AUTO) && 
         !(this->stage_bm & MODE_AGENT))
@@ -40,25 +37,24 @@ void Controller::loopOnce()
     this->monitor_display();
     this->loop_rate.sleep();
 }
+
+/* Handling idle mode */
 void Controller::idle(const int16_t &_op)
 {
     RobotInvoke srv;
     switch(_op){
         case OPCODE_NONE:
-            this->trigger_working();
+            this->work_begin();
             break;
         case OPCODE_CALIB:
-            srv = this->base_driver.invoke(OPCODE_CALIB, vector<int16_t>());
-            if(this->base_driver.is_invoke_valid(srv)){
-                this->calibration(_op);
-            }
+            this->calibration(_op);
             break;
         case OPCODE_TRAIN_BEGIN:
             if(!this->train_begin()){
                 ROS_ERROR("Train begin failed");
             }
             break;
-        case OPCODE_WORK_BEGIN: // work manually, just push node here
+        case OPCODE_WORK_BEGIN: // work manually, just push Vertex pointers here
             this->add_target(this->nd_target);
             break;
         case OPCODE_AUTO:
@@ -69,16 +65,25 @@ void Controller::idle(const int16_t &_op)
     }
 }
 
+/* Invoke calibration, block until robot replies */
 void Controller::calibration(const int16_t &_op)
 {
+    auto srv = this->base_driver.invoke(OPCODE_CALIB, vector<int16_t>());
+    if(this->base_driver.is_invoke_valid(srv)){
+        this->clear();
+        this->stage_bm |= MODE_CALIB;
+        ROS_INFO("Calibration finished");
+    }
+    else{
+        ROS_ERROR("Calib Error");
+    }
     #ifdef ROBOT_CONTROLLER_TEST
         this->mode = MODE_IDLE;
         this->stage_bm |= MODE_CALIB;
     #endif
-    this->clear();
-    this->stage_bm |= MODE_CALIB;
-    ROS_INFO("Calibration finished");
 }
+
+/* Handling training mode */
 void Controller::training(const int16_t &_op)
 {
     RobotInvoke srv;
@@ -101,9 +106,11 @@ void Controller::training(const int16_t &_op)
             break;
     }
 }
-/* 
-    Polling tracking status
 
+/* 
+    Press A in working mode will flush all works
+    
+    Polling tracking status
     return true then finish working or not in working, escape from action
     false otherwise and keep trying
 */
@@ -128,7 +135,7 @@ bool Controller::working(const int16_t &_op)
             
             this->ocp_vptr = this->work_list.front();
             this->pose_tracer.set_coor(this->ocp_vptr->pos.x, this->ocp_vptr->pos.y);
-            this->work_list.pop_front();
+            this->work_list.clear();
 
             #ifdef ROBOT_CONTROLLER_TEST
                 this->tracking_status = TRACKING_STATUS_NORMAL;
@@ -165,6 +172,12 @@ bool Controller::working(const int16_t &_op)
     this->work_mutex.unlock();
     return ret;
 }
+
+/*
+    Invoke setnode operation, return true if successfully sey, otherwise false
+    do auto merge when nodes are set with 
+    distance <= this->close_enought with any other RouteNodes
+*/
 bool Controller::set_node()
 {
     this->train_mutex.lock();
@@ -255,6 +268,11 @@ bool Controller::set_node()
     this->train_mutex.unlock();
     return ret;
 }
+
+/*
+    push a target node to work list
+    clearing work list first then auto expand target into a list of RouteNodes
+*/
 bool Controller::add_target(const RouteNode &_nd)
 {
     this->work_mutex.lock();
@@ -292,6 +310,7 @@ bool Controller::add_target(const RouteNode &_nd)
     this->work_mutex.unlock();
     return ret;
 }
+
 /* Find the RouteNode on the same path as the curret one */
 const RouteNode Controller::get_affinity_vertex(const VertexType* _curr, const VertexType* _vptr)
 {
@@ -314,6 +333,12 @@ const RouteNode Controller::get_affinity_vertex(const VertexType* _curr, const V
     }
     return ret;
 }
+
+/*
+    Atomic
+    Invoke train_begin operation on this->nd_training.route
+    return true if successfully invoked, otherwise false
+*/
 bool Controller::train_begin()
 {
     this->train_mutex.lock();
@@ -344,6 +369,12 @@ bool Controller::train_begin()
     this->train_mutex.unlock();
     return false;
 }
+
+/*
+    Atomic
+    Invoke train_finish operation on this->nd_training.route
+    return true if successfully invoked, otherwise false
+*/
 bool Controller::train_finish()
 {
     this->train_mutex.lock();
@@ -375,12 +406,13 @@ bool Controller::train_finish()
     this->train_mutex.unlock();
     return ret;
 }
-/* 
+
+/*  Atomic
     trigger working if work_list is not empty 
     return true if the robot has entered working
     false otherwise
 */
-bool Controller::trigger_working()
+bool Controller::work_begin()
 {
     this->work_mutex.lock();
     

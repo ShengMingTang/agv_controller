@@ -7,7 +7,7 @@ using namespace std;
     header.frame_id = this->frame_id;\
 }
 
-#define MSG_QUE_SIZE 10
+#define MSG_QUE_SIZE 1
 #define ANGULAR_FACTOR 0.1
 /* motor limits */
 #define MOTOR_LINEAR_LIMIT 60

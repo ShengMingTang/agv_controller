@@ -137,10 +137,11 @@ void Graph<V, E>::Floyd_Warshall()
 }
 
 /*
+    start point inclusive
     if both _start and _end are valid vertex pointers
         return pair(cost, path)
     else
-        return pair(double_max)
+        return pair(double_max, empty path)
 */
 template<typename V, typename E>
 pair<double, list<V*> > Graph<V, E>::shortest_path(V *_start, V *_end)
@@ -159,6 +160,7 @@ pair<double, list<V*> > Graph<V, E>::shortest_path(V *_start, V *_end)
             ret.second.push_front(p.second);
             ptr = p.second;
         }
+        ret.second.push_front(_start);
         return ret;
     }
     else{

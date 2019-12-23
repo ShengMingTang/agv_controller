@@ -38,10 +38,10 @@ void Controller::monitor_display() const
         nd.route = nd.node = -1;
     }
 
-    sprintf(buff, "stat:%d,%d, trk:%d, ocp:%d,%d, pos:(%+.1f,%+.1f %+.1f), v:<%+2d,%+2d>, L:[%d,%d,%d,%d], Trn{%d, %d}, Tar<%d,%d>",
+    snprintf(buff, 150, "stat:%d,%d, trk:%d, ocp:%d,%d, pos:(%+.1f,%+.1f %+.1f), v:<%+2d,%+2d>, L:[%d,%d,%d,%d], Trn{%d, %d}, Tar<%d,%d>",
                 this->mode, this->stage_bm,
-                nd.route, nd.node,
                 this->tracking_status,
+                nd.route, nd.node,
                 coor.x, coor.y, (coor.w) / 3.14159 * 180,
                 this->pose_tracer.get_vel()[0], this->pose_tracer.get_vel()[1],
                 this->lidar_levels[0], this->lidar_levels[1], this->lidar_levels[2], this->lidar_levels[3],
@@ -137,6 +137,8 @@ bool Controller::nodeocp_serve(WifiNodeOcp::Request &_req, WifiNodeOcp::Response
 {
     if(this->ocp_vptr){
         _res.is_ocp = !( this->ocp_vptr->aliases.find(_req.q_rn) == this->ocp_vptr->aliases.end() );
+        _res.error_code = WIFI_ERRCODE_NONE;
+        ROS_INFO("[Nodeocp Service] Got asked if on R%dN%d, reply:%d", _req.q_rn.route, _req.q_rn.node, _res.is_ocp);
     }
     else{
         #ifdef ROBOT_CONTROLLER_TEST
@@ -144,13 +146,14 @@ bool Controller::nodeocp_serve(WifiNodeOcp::Request &_req, WifiNodeOcp::Response
             ROS_WARN("{Nodeocp Service] manually answer if occupy R%dN%d ? [y/n]", _req.q_rn.route, _req.q_rn.node);
             cin >> ans;
             _res.is_ocp = (ans == "y");
-            
+            _res.error_code = WIFI_ERRCODE_NONE;
         #else
             ROS_WARN("[Nodeocp Service] target out of range, reply false (not occupied)");
             _res.is_ocp = false;
+            _res.error_code = WIFI_ERRCODE_NODE;
         #endif
     }
-    _res.error_code = WIFI_ERRCODE_NONE;
+    
     return true;
 }
 bool Controller::nodecost_serve(WifiNodeCost::Request &_req, WifiNodeCost::Response &_res)
@@ -158,11 +161,12 @@ bool Controller::nodecost_serve(WifiNodeCost::Request &_req, WifiNodeCost::Respo
     if(this->is_target_valid(_req.target)){
         _res.cost = this->graph.shortest_path(this->ocp_vptr, this->rn_img[_req.target.route][_req.target.node]).first;
         _res.error_code = WIFI_ERRCODE_NONE;
+        ROS_INFO("[Nodecost Service] Got asked cost to R%dN%d, reply:%.1f", _req.target.route, _req.target.node, _res.cost);
     }
     else{
         _res.cost = numeric_limits<double>::max();
         _res.error_code = WIFI_ERRCODE_COST;
-        ROS_WARN("[NodeCost Service] target out of range, reply max double value");
+        ROS_WARN("[Nodecost Service] target out of range, reply max double value");
     }
     return true;
 }
@@ -195,23 +199,24 @@ bool Controller::askdata_serve(Ask_Data::Request &_req, Ask_Data::Response &_res
     data.tracking_status = (int16_t)this->tracking_status;
     data.lidar_levels = this->lidar_levels;
     
-    geometry_msgs::Quaternion p = this->pose_tracer.get_coor();
-    data.coor.x = p.x, data.coor.y = p.y, data.coor.z = p.z;
+    // save io burden
+    // geometry_msgs::Quaternion p = this->pose_tracer.get_coor();
+    // data.coor.x = p.x, data.coor.y = p.y, data.coor.z = p.z;
     
-    data.nd_training = this->nd_training;
-    data.graph = this->dumps_graph();
+    // data.nd_training = this->nd_training;
+    // data.graph = this->dumps_graph();
 
-    if(this->ocp_vptr && !this->ocp_vptr->aliases.empty()){
-        data.nd_ocp = *(this->ocp_vptr->aliases.begin());
-    }
-    else{
-        data.nd_ocp.route = data.nd_ocp.node = -1;
-    }
+    // if(this->ocp_vptr && !this->ocp_vptr->aliases.empty()){
+    //     data.nd_ocp = *(this->ocp_vptr->aliases.begin());
+    // }
+    // else{
+    //     data.nd_ocp.route = data.nd_ocp.node = -1;
+    // }
 
-    data.nd_target = this->nd_target;
-    for(auto it : this->work_list){
-        data.work_list.push_back(*(it->aliases.begin()));
-    }
+    // data.nd_target = this->nd_target;
+    // for(auto it : this->work_list){
+    //     data.work_list.push_back(*(it->aliases.begin()));
+    // }
     _res.ctrlData = data;
     return true;
 }
@@ -263,7 +268,7 @@ void Controller::execute_schedule(const tircgo_controller::scheduleGoalConstPtr 
                 this->work_mutex.unlock();
                 while(this->stage_bm & MODE_AUTO && !is_empty){
                     if(this->mode != MODE_WORKING){
-                        this->trigger_working();
+                        this->work_begin();
                     }
                     this->working(OPCODE_NONE);
                     if(this->sch_srv.isPreemptRequested() || !ros::ok()){
