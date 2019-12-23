@@ -48,7 +48,9 @@ void Graph<V, E>::erase(vector<V*> _victims)
 {
     for(auto victim : _victims){
         // erase victim <- neighbor
+        int j = 0;
         for(auto edge : this->edges[victim]){
+            int i = 0;
             for(auto back_edge = this->edges[edge.dst].begin(); back_edge != this->edges[edge.dst].end();){
                 if(back_edge->dst == victim){
                     back_edge = this->edges[edge.dst].erase(back_edge);
@@ -56,6 +58,7 @@ void Graph<V, E>::erase(vector<V*> _victims)
                 else{
                     back_edge++;
                 }
+                i++;
             }
         }
         // erase victim -> neighbor
@@ -137,7 +140,7 @@ void Graph<V, E>::Floyd_Warshall()
 }
 
 /*
-    start point inclusive
+    start point exclusive
     if both _start and _end are valid vertex pointers
         return pair(cost, path)
     else
@@ -160,7 +163,7 @@ pair<double, list<V*> > Graph<V, E>::shortest_path(V *_start, V *_end)
             ret.second.push_front(p.second);
             ptr = p.second;
         }
-        ret.second.push_front(_start);
+        // ret.second.push_front(_start);
         return ret;
     }
     else{

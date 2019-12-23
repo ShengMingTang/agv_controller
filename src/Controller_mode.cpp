@@ -348,10 +348,10 @@ bool Controller::train_begin()
         auto srv = this->base_driver.invoke(OPCODE_TRAIN_BEGIN, train_args);
         if(this->base_driver.is_invoke_valid(srv)){
             // flush all data for route nd.training.route
-            this->graph.erase(this->rn_img[this->nd_training.route]);
+            this->graph.erase(this->rn_img[this->nd_training.route]); // bug
             this->rn_img[this->nd_training.route].clear();
             this->drive({0, 0});
-
+            this->ocp_vptr = nullptr;
             ROS_WARN("First node is not automatically set!");
             ROS_WARN("Please set first node manually before any movement");
 
