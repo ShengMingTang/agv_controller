@@ -21,7 +21,7 @@ public:
     /* return true if successfully added*/
     bool add_edge(const E _edge);
     /* erase the related data of every element in _victim */
-    void erase(vector<V*> _victims);
+    void erase_edge(vector<V*> _victims);
     void clear();
     /* return pair of cost and path */
     void Floyd_Warshall();
@@ -42,34 +42,26 @@ V* Graph<V, E>::add_vertex(const V &_add)
     this->edges[ptr] = list<E>();
     return ptr;  
 }
-
+/* erase edges related to these victims */
 template<typename V, typename E>
-void Graph<V, E>::erase(vector<V*> _victims)
+void Graph<V, E>::erase_edge(vector<V*> _victims)
 {
-    for(auto &victim : _victims){
-        // erase victim <- neighbor
-        for(auto edge : this->edges[victim]){
-            for(auto back_edge = this->edges[edge.dst].begin(); back_edge != this->edges[edge.dst].end();){
-                if(back_edge->dst == victim){
-                    back_edge = this->edges[edge.dst].erase(back_edge);
-                }
-                else{
-                    back_edge++;
-                }
-            }
-        }
-        // erase victim -> neighbor
-        this->edges.erase(victim);
-        // erase the object of victim
-        for(auto it = this->vertices.begin(); it != this->vertices.end(); ){
-            if( &(*it) == victim ){
-                it = this->vertices.erase(it);
-                break;
+    set<V*> s;
+    for(auto victim : _victims){
+        s.insert(victim);
+    }
+    for(auto &edge_start : this->edges){ // edge_start is edge list
+        for(auto edge = edge_start.second.begin(); edge != edge_start.second.end();){ // edge
+            if(s.find(edge->dst) != s.end() || s.find(edge->src) != s.end()){
+                edge = edge_start.second.erase(edge);
             }
             else{
-                it++;
+                edge++;
             }
         }
+    }
+    for(auto victim : _victims){
+        this->edges.erase(victim);
     }
     if(!_victims.empty()){
         this->is_up_to_date = false;

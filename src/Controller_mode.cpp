@@ -348,7 +348,21 @@ bool Controller::train_begin()
         auto srv = this->base_driver.invoke(OPCODE_TRAIN_BEGIN, train_args);
         if(this->base_driver.is_invoke_valid(srv)){
             // flush all data for route nd.training.route
-            this->graph.erase(this->rn_img[this->nd_training.route]); // bug
+            this->graph.erase_edge(this->rn_img[this->nd_training.route]);
+            for(int i = 0; i < this->rn_img[this->nd_training.route].size(); i++){
+                RouteNode nd;
+                nd.route = this->nd_training.route, nd.node = i;
+                this->rn_img[this->nd_training.route][i]->aliases.erase(nd);
+            }
+            // garbage collection
+            for(auto it = this->graph.vertices.begin(); it != this->graph.vertices.end();){
+                if(it->aliases.empty()){
+                    it = this->graph.vertices.erase(it);
+                }
+                else{
+                    it++;
+                }
+            }
             this->rn_img[this->nd_training.route].clear();
             this->drive({0, 0});
             this->ocp_vptr = nullptr;
