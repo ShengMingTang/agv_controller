@@ -196,8 +196,8 @@ bool Controller::askdata_serve(Ask_Data::Request &_req, Ask_Data::Response &_res
     data.mode = (int16_t)this->mode;
     data.stage_bm = this->stage_bm;
 
-    data.tracking_status = (int16_t)this->tracking_status;
-    data.lidar_levels = this->lidar_levels;
+    // data.tracking_status = (int16_t)this->tracking_status;
+    // data.lidar_levels = this->lidar_levels;
     
     // save io burden
     // geometry_msgs::Quaternion p = this->pose_tracer.get_coor();
@@ -220,6 +220,8 @@ bool Controller::askdata_serve(Ask_Data::Request &_req, Ask_Data::Response &_res
     _res.ctrlData = data;
     return true;
 }
+
+/* true then the question node is occupied or being computed */
 bool Controller::is_target_ocp(const VertexType *vptr)
 {
     tircgo_msgs::WifiNodeOcp srv;
@@ -229,7 +231,12 @@ bool Controller::is_target_ocp(const VertexType *vptr)
             ROS_ERROR("| ----> Wifi SrvErr");
             return false;
         }
-        return srv.response.error_code == WIFI_ERRCODE_NONE && srv.response.is_ocp;
+        if(srv.response.error_code == WIFI_ERRCODE_NONE){
+            return srv.response.is_ocp;
+        }
+        else{
+            return true;
+        }
     }
     else{
         return false;

@@ -2,7 +2,7 @@
     <!-- joy node -->
     <node pkg="joy" type="joy_node" name="joy_node"/>
     <!-- driving agv -->
-    <node pkg="tircgo_uart" type = "tircgo_uart_encoder_decoder_node" name = "tircgo_encoder_decoder_nodename" output="screen"/>
+    <node pkg="tircgo_uart" type = "tircgo_uart_encoder_decoder_node" name = "tircgo_encoder_decoder_nodename2" output="screen"/>
     <!-- brain -->
     <!-- <node pkg="tircgo_controller" type="tircgo_controller_node" name="tircgo_controller_node" arg = "-l ./tircgo_log -m 1" output="screen"/> -->
 </launch>
