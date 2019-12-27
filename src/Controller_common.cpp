@@ -492,6 +492,7 @@ bool Controller::shutdown()
 /* safety issue */
 bool Controller::check_safety(vector<int16_t> _vel)
 {
+    return true; // spaghetti
     bool ret;
     if(this->mode != MODE_WORKING){
         if(_vel[0] > 0)
