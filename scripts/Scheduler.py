@@ -69,7 +69,7 @@ def setup():
     Work(0, 0)
     return
 def loop():
-    Work(0, 2)
+    Work(0, 1)
     Work(0, 0)
     return
 

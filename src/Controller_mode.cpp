@@ -440,6 +440,7 @@ bool Controller::work_begin()
             vector<int16_t> work_args = {next_nd.route, next_nd.node};
             auto srv = this->base_driver.invoke(OPCODE_WORK_BEGIN, work_args);
             if(this->base_driver.is_invoke_valid(srv)){
+                this->tracking_status = TRACKING_STATUS_OUT;// spaghetti
                 this->ocp_vptr = this->work_list.front(); // claim
                 ROS_INFO("Claim the target node is occupied by the current robot");
                 ROS_INFO("Enter working mode");
