@@ -177,9 +177,13 @@ bool Controller::task_confirm_serve(WifiTaskConfirm::Request &_req, WifiTaskConf
         _res.error_code = WIFI_ERRCODE_ROBOT;
         ROS_WARN("[Taskconfirm Service] In auto mode, not taking any wifi allocated jobs");
     }
-    else if(this->is_target_valid(_req.task.target)){
+    else if(this->is_target_valid(_req.task.target) && this->is_target_valid(_req.dest)){
+        auto mid = this->rn_img[_req.task.target.route][_req.task.target.node];
+        auto last = this->rn_img[_req.dest.route][_req.dest.node];
         _res.is_taken = true;
-        auto path = this->graph.shortest_path(this->ocp_vptr, this->rn_img[_req.task.target.route][_req.task.target.node]).second;
+        auto path = this->graph.shortest_path(this->ocp_vptr, mid).second;
+        this->work_list.insert(this->work_list.end(), path.begin(), path.end());
+        path = this->graph.shortest_path(mid, last).second;
         this->work_list.insert(this->work_list.end(), path.begin(), path.end());
         _res.error_code = WIFI_ERRCODE_NONE;
     }
