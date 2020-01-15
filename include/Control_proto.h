@@ -54,6 +54,7 @@ using namespace std;
 #define TRACKING_STATUS_OBSTACLE -3
 #define TRACKING_STATUS_ARRIVAL 127
 /* uart error code */
+#define ERROCODE_EMPTY_ROUTE 2
 #define ERRCODE_NONE 0
 #define ERRCODE_OK 1
 #define ERRCODE_NOT_OK -1

@@ -451,6 +451,13 @@ bool Controller::work_begin()
                 #endif
                 ret = true;
             }
+            else if(srv.response.error_code == ERROCODE_EMPTY_ROUTE){
+                if(!this->work_list.empty()){
+                    this->ocp_vptr = this->work_list.front();
+                    this->work_list.pop_front();
+                    ROS_ERROR("[Fatal Error] Robot gives empty route, forced give up this node, skip to next one");// @@
+                }
+            }
         }
         else{
             ROS_INFO("Want to work but target is occupied, waiting");
