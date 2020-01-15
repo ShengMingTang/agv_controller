@@ -283,9 +283,6 @@ bool Controller::add_target(const RouteNode &_nd)
             this->work_list.clear();
             auto path = this->graph.shortest_path(this->ocp_vptr, this->rn_img[_nd.route][_nd.node]).second;
             this->work_list.insert(this->work_list.end(), path.begin(), path.end());
-            if(!this->work_list.empty()){
-                this->work_list.pop_front();
-            }
             stringstream ss;
             ss << "Path : ";
             for(auto it = this->work_list.begin(); it != this->work_list.end(); it++){
@@ -431,6 +428,10 @@ bool Controller::work_begin()
     this->work_mutex.lock();
     
     bool ret = false;
+    while(!this->work_list.empty() && this->ocp_vptr == this->work_list.front()){
+        this->work_list.pop_front();
+        ROS_WARN("Same Vertex, omitted");
+    }
     if(this->stage_bm & MODE_TRAINING && !this->work_list.empty()){
         // check if there were jobs to do
         VertexType *next_vptr = this->work_list.front();
