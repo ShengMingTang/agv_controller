@@ -1,5 +1,5 @@
 #include "Controller.h"
-
+// tmp version
 /* main event loop, loop at rate this->loop_rate */
 void Controller::loopOnce()
 {   
@@ -131,7 +131,7 @@ bool Controller::working(const int16_t &_op)
     
     if(_op == OPCODE_WORK_FINISH && !(this->stage_bm & MODE_AUTO)){
         auto srv = this->base_driver.invoke(OPCODE_WORK_FINISH, vector<int16_t>());
-        if(this->base_driver.is_invoke_valid(srv)){
+        if(this->base_driver.is_invoke_valid(srv) && !this->work_list.empty()){
             
             this->ocp_vptr = this->work_list.front();
             this->pose_tracer.set_coor(this->ocp_vptr->pos.x, this->ocp_vptr->pos.y);
@@ -152,7 +152,7 @@ bool Controller::working(const int16_t &_op)
     else if(this->tracking_status == TRACKING_STATUS_ARRIVAL){
         ROS_INFO("Arrival on target");
         auto srv = this->base_driver.invoke(OPCODE_WORK_FINISH, vector<int16_t>());
-        if(this->base_driver.is_invoke_valid(srv)){
+        if(this->base_driver.is_invoke_valid(srv) && !this->work_list.empty()){
             ROS_INFO("Arrival and finish working");
             this->ocp_vptr = this->work_list.front();
             this->pose_tracer.set_coor(this->ocp_vptr->pos.x, this->ocp_vptr->pos.y);
